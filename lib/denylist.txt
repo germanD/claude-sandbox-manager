@@ -1,0 +1,10 @@
+# sandbox-audit denylist
+#
+# One substring per line (case-insensitive). If a failure record's command,
+# path, cwd, or error text contains any of these, the WHOLE record is dropped
+# and never written to failures.jsonl. Privacy beats completeness.
+#
+# 'priv-misc' is always denied (built-in default); listed here for visibility.
+# Add your own private paths / project names / hostnames below.
+
+priv-misc
