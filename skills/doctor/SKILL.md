@@ -38,6 +38,18 @@ The clustering logic lives in `lib/doctor.py` inside this plugin. Locate and run
    python3 "$DOCTOR" --scan-history
    ```
 
+   `--scan-history` reviews **every** session transcript on disk
+   (`~/.claude/projects/*/*.jsonl`) — all projects and all sessions, including
+   other live ones (up to what they have flushed), not just the current session.
+
+4. Add `--verbose` to also list exactly which sessions/transcripts were
+   reviewed (with per-session failure counts; denylisted project names are
+   shown as `[redacted]`):
+
+   ```bash
+   python3 "$DOCTOR" --scan-history --verbose
+   ```
+
 ## How to present results
 
 - Lead with the **top recurring clusters** (highest count first): what failed,
@@ -48,6 +60,8 @@ The clustering logic lives in `lib/doctor.py` inside this plugin. Locate and run
 - For an over-broad deny cluster (read-only commands being denied), point to the
   specific deny pattern that should be narrowed.
 - If there are no failures, say so plainly.
+- With `--verbose`, mention the scope reviewed (how many sessions/projects), so
+  it is clear the audit spans sessions, not just the current one.
 
 Do not propose editing settings files unless the user explicitly asks; this
 skill's job is diagnosis.
