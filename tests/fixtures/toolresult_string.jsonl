@@ -1,0 +1,2 @@
+{"type":"assistant","sessionId":"s-str","cwd":"/home/u/proj","timestamp":"2026-06-08T17:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Bash","input":{"command":"false"}}]}}
+{"type":"user","sessionId":"s-str","cwd":"/home/u/proj","timestamp":"2026-06-08T17:00:01.000Z","toolUseResult":"plain string result, not an object","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu1","is_error":true,"content":"Exit code 1\ncommand failed"}]}}

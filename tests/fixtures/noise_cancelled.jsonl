@@ -1,0 +1,4 @@
+{"type":"assistant","sessionId":"s-noise","cwd":"/home/u/proj","timestamp":"2026-06-04T13:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Bash","input":{"command":"glab mr list"}}]}}
+{"type":"user","sessionId":"s-noise","cwd":"/home/u/proj","timestamp":"2026-06-04T13:00:01.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu1","is_error":true,"content":"<tool_use_error>Cancelled: parallel tool call Bash(gh pr list) errored</tool_use_error>"}]}}
+{"type":"assistant","sessionId":"s-noise","cwd":"/home/u/proj","timestamp":"2026-06-04T13:00:02.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu2","name":"Bash","input":{"command":"echo hi"}}]}}
+{"type":"user","sessionId":"s-noise","cwd":"/home/u/proj","timestamp":"2026-06-04T13:00:03.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu2","is_error":true,"content":"[Request interrupted by user]"}]}}
