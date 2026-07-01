@@ -131,11 +131,17 @@ def suggest(c):
 
     if "apply-seccomp" in sig or "setgroups" in sig or "apply-seccomp" in snippet:
         out.append(
-            "Sandbox seccomp is broken on this kernel (Claude Code #43454: "
-            "nested userns needs CAP_SYS_ADMIN). Sandboxed Bash cannot start. "
-            "Either disable the seccomp sandbox for affected commands or apply a "
-            "working seccomp.applyPath override — and verify the stub is actually "
-            "invoked (check for its log line)."
+            "Sandboxed Bash can't start: CC's apply-seccomp creates a nested user "
+            "namespace that Ubuntu's AppArmor userns restriction blocks (Claude Code "
+            "#43454). NOTE: the sandbox.seccomp.applyPath override is IGNORED by CC "
+            "(#24238), so a stub workaround will not help. Verified fix on Ubuntu "
+            "(needs BOTH, as root): "
+            "(1) sysctl kernel.apparmor_restrict_unprivileged_userns=0 (persist in "
+            "/etc/sysctl.d/); "
+            "(2) unload the profile that strips caps from bwrap children — "
+            "`apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict` and persist "
+            "with a symlink into /etc/apparmor.d/disable/. "
+            "Trade-off: re-enables unprivileged user namespaces system-wide."
         )
 
     if c["kind"] == "permission_denied":
