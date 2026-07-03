@@ -1,8 +1,11 @@
 # sandbox-audit denylist
 #
 # One substring per line (case-insensitive). If a failure record's command,
-# path, cwd, or error text contains any of these, the WHOLE record is dropped
-# and never written to failures.jsonl. Privacy beats completeness.
+# path, cwd, or error text contains any of these, the sensitive parts are
+# MASKED before the record is written to failures.jsonl: the command/path/cwd/
+# project and error snippet are replaced with redacted placeholders, so only the
+# learnable shape of the failure is kept (never the private value). Privacy
+# beats completeness.
 #
 # 'priv-misc' is always denied (built-in default); listed here for visibility.
 # Add your own private paths / project names / hostnames below.

@@ -156,7 +156,8 @@ def signature(kind, tool, command, error_text):
 def mine_transcript(path):
     """Return a list of failure records mined from one transcript file.
 
-    Records are already redacted; denylisted records are dropped.
+    Records are already redacted; denylisted records are masked (sensitive
+    fields replaced with redacted placeholders), not dropped.
     """
     project = os.path.basename(os.path.dirname(os.path.abspath(path)))
     tool_uses = {}     # tool_use_id -> (tool_name, input_summary)

@@ -3,8 +3,10 @@
 Hard requirement: nothing is persisted to failures.jsonl until it has passed
 through here. Two layers:
 
-  1. drop()      -- if text touches a denylisted path/command (e.g. priv-misc),
-                    the whole record is discarded. Privacy beats completeness.
+  1. is_denied() -- if text touches a denylisted path/command (e.g. priv-misc),
+                    the caller (capture.py) MASKS the record's sensitive fields
+                    rather than persisting the raw values, keeping only the
+                    learnable shape. Privacy beats completeness.
   2. redact()    -- scrub secret-shaped substrings (tokens, keys, auth headers)
                     from text that IS kept.
 
@@ -19,7 +21,8 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 _DENYLIST_FILE = os.path.join(_HERE, "denylist.txt")
 
 # Substrings that, if present anywhere in a record's searchable text, cause the
-# whole record to be dropped. Always-on defaults; extended by denylist.txt.
+# record's sensitive fields to be masked. Always-on defaults; extended by
+# denylist.txt.
 _DEFAULT_DENY = ["priv-misc"]
 
 
