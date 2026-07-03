@@ -1,0 +1,2 @@
+{"type":"assistant","sessionId":"s-deny","cwd":"/home/u/proj","timestamp":"2026-06-03T12:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Bash","input":{"command":"ls -la /some/guarded/area"}}]}}
+{"type":"user","sessionId":"s-deny","cwd":"/home/u/proj","timestamp":"2026-06-03T12:00:01.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu1","is_error":true,"content":"Permission to use Bash with command ls -la /some/guarded/area has been denied."}]}}

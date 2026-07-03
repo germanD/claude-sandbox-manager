@@ -1,0 +1,15 @@
+{
+  "description": "Capture failing tool calls from the session transcript when the session ends",
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-end.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

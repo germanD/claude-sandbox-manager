@@ -1,0 +1,16 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "sandbox-audit-dev",
+  "description": "Local development marketplace for the sandbox-audit plugin.",
+  "owner": {
+    "name": "Germán Delbianco"
+  },
+  "plugins": [
+    {
+      "name": "sandbox-audit",
+      "description": "Mines Claude Code session transcripts for failing tool calls and permission denials, clusters recurring failures, and suggests sandbox/permission config fixes.",
+      "category": "development",
+      "source": "./"
+    }
+  ]
+}
