@@ -40,7 +40,7 @@ hooks/
 └── session-end.sh      # fail-safe wrapper: reads hook JSON, calls capture.py
 lib/
 ├── capture.py          # transcript miner: parse → classify → redact → append
-├── common.py           # shared paths/constants (DATA_DIR, FAILURES_PATH)
+├── common.py           # shared paths/constants (DATA_DIR, FAILURES_PATH, ARCHIVE_PATH)
 ├── denylist.txt        # user-editable substring denylist (privacy gate)
 ├── doctor.py           # cluster failures + advisory suggestions (skill backend)
 └── redact.py           # denylisting + secret scrubbing (privacy layer)
@@ -94,8 +94,25 @@ record schema or persistence path.
 
 ### 6. Fixed, predictable data directory
 Both the hook and the skill agree on `~/.claude/sandbox-audit/failures.jsonl`
+(active log) and `~/.claude/sandbox-audit/failures.archive.jsonl` (audit trail)
 via `lib/common.py` (they must not depend on plugin-only env vars being exposed
-to skills). Change this path in one place only.
+to skills). Change these paths in one place only.
+
+### 7. Aged-out records are MOVED to the audit trail, never deleted
+`capture.archive_stale` rolls records older than `DEFAULT_RETENTION_DAYS` out of
+the active log into `failures.archive.jsonl` so `doctor` stays focused on what's
+current. Preserve these properties:
+- **Move, not delete.** Stale records are appended to the archive *before* being
+  dropped from the active log — nothing is lost even if the rewrite fails.
+- **Fail-safe.** `main` calls `archive_stale` inside a `try/except` that swallows
+  everything; it must never break the capture / SessionEnd-hook path (invariant #1).
+- **Dedup spans both files.** `append_records` dedups against the active log AND
+  the archive, so a re-scan of an old transcript can never resurrect an archived
+  record into the active log (extends invariant #5).
+- **Undatable records stay active.** Records with a missing/unparseable `ts` are
+  never archived — we don't age out something we can't date.
+- `doctor --archive` forces a rotation now; `doctor --include-archive` reports
+  over the active log + trail together.
 
 ## Code Conventions
 

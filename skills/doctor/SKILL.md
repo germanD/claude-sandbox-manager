@@ -50,6 +50,22 @@ The clustering logic lives in `lib/doctor.py` inside this plugin. Locate and run
    python3 "$DOCTOR" --scan-history --verbose
    ```
 
+## Audit trail (aged-out records)
+
+The active log keeps only recent failures. Records older than the retention
+window (`DEFAULT_RETENTION_DAYS`, currently 7) are **moved** — never deleted —
+into an audit trail at `~/.claude/sandbox-audit/failures.archive.jsonl`. This
+happens automatically on the `SessionEnd` capture path, so the default report
+stays focused on what's current.
+
+- `python3 "$DOCTOR" --include-archive` — report over the active log **and** the
+  audit trail together (full history).
+- `python3 "$DOCTOR" --archive` — force a rotation right now (move stale records
+  to the trail), then exit. Add `--retention-days N` to override the window.
+
+Do not delete the archive to "clean up" — it is the historical record; rolling
+records off the active log is the intended way to keep reports focused.
+
 ## How to present results
 
 - Lead with the **top recurring clusters** (highest count first): what failed,
