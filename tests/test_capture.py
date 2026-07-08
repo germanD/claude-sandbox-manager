@@ -1,3 +1,5 @@
+import datetime
+import json
 import os
 import sys
 import tempfile
@@ -130,6 +132,67 @@ class TestPersistenceDedup(unittest.TestCase):
                     self.assertEqual(sum(1 for _ in fh), 1)
             finally:
                 common.DATA_DIR, common.FAILURES_PATH = orig_dir, orig_path
+
+
+def _rec(session, tid, days_ago, now):
+    ts = (now - datetime.timedelta(days=days_ago)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+    return {"ts": ts, "session_id": session, "tool_use_id": tid,
+            "tool": "Bash", "kind": "runtime_failure", "signature": "Bash:x",
+            "command": "echo", "snippet": "boom", "project": "p", "cwd": "/p"}
+
+
+def _lines(path):
+    if not os.path.exists(path):
+        return []
+    with open(path) as fh:
+        return [json.loads(l) for l in fh if l.strip()]
+
+
+class TestArchive(unittest.TestCase):
+    def setUp(self):
+        self._orig = (common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH)
+        self._d = tempfile.mkdtemp()
+        common.DATA_DIR = self._d
+        common.FAILURES_PATH = os.path.join(self._d, "failures.jsonl")
+        common.ARCHIVE_PATH = os.path.join(self._d, "failures.archive.jsonl")
+        self.now = datetime.datetime(2026, 7, 8, tzinfo=datetime.timezone.utc)
+
+    def tearDown(self):
+        common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH = self._orig
+
+    def _seed(self, records):
+        capture._rewrite_jsonl(common.FAILURES_PATH, records)
+
+    def test_moves_old_keeps_recent(self):
+        self._seed([_rec("s", "old", 10, self.now), _rec("s", "new", 2, self.now)])
+        moved, kept = capture.archive_stale(retention_days=7, now=self.now)
+        self.assertEqual((moved, kept), (1, 1))
+        self.assertEqual([r["tool_use_id"] for r in _lines(common.FAILURES_PATH)], ["new"])
+        self.assertEqual([r["tool_use_id"] for r in _lines(common.ARCHIVE_PATH)], ["old"])
+
+    def test_undatable_record_is_kept(self):
+        bad = _rec("s", "nots", 99, self.now)
+        bad["ts"] = ""
+        self._seed([bad])
+        moved, kept = capture.archive_stale(retention_days=7, now=self.now)
+        self.assertEqual((moved, kept), (0, 1))
+
+    def test_idempotent(self):
+        self._seed([_rec("s", "old", 10, self.now)])
+        self.assertEqual(capture.archive_stale(retention_days=7, now=self.now), (1, 0))
+        # Second run: nothing left to move, archive not doubled.
+        self.assertEqual(capture.archive_stale(retention_days=7, now=self.now), (0, 0))
+        self.assertEqual(len(_lines(common.ARCHIVE_PATH)), 1)
+
+    def test_archived_record_not_resurrected_by_append(self):
+        # A record already in the archive must not be re-added to the active log
+        # when the same failure is mined again (invariant: no resurrection).
+        old = _rec("s", "old", 10, self.now)
+        self._seed([old])
+        capture.archive_stale(retention_days=7, now=self.now)
+        self.assertEqual(_lines(common.FAILURES_PATH), [])
+        self.assertEqual(capture.append_records([old]), 0)  # deduped vs archive
+        self.assertEqual(_lines(common.FAILURES_PATH), [])
 
 
 if __name__ == "__main__":
