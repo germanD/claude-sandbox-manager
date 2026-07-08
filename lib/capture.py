@@ -13,10 +13,12 @@ Stdlib only. Designed to be called from the SessionEnd hook, and reused by
 doctor.py --scan-history.
 """
 
+import datetime
 import json
 import os
 import re
 import sys
+import tempfile
 
 # Allow running both as a module and as a script.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -236,19 +238,25 @@ def mine_transcript(path):
 # ----------------------------------------------------------------------------
 
 
-def _existing_keys(path):
+def _existing_keys(*paths):
+    """Dedup keys (session_id, tool_use_id) seen across the given log files."""
     keys = set()
-    if not os.path.exists(path):
-        return keys
-    for rec in _iter_lines(path):
-        keys.add((rec.get("session_id", ""), rec.get("tool_use_id", "")))
+    for path in paths:
+        if not path or not os.path.exists(path):
+            continue
+        for rec in _iter_lines(path):
+            keys.add((rec.get("session_id", ""), rec.get("tool_use_id", "")))
     return keys
 
 
 def append_records(records):
-    """Append new (deduped) records to the shared failures log. Returns count."""
+    """Append new (deduped) records to the shared failures log. Returns count.
+
+    Dedup spans BOTH the active log and the audit trail (invariant: archiving a
+    record must not let a later scan resurrect it into the active log).
+    """
     common.ensure_data_dir()
-    seen = _existing_keys(common.FAILURES_PATH)
+    seen = _existing_keys(common.FAILURES_PATH, common.ARCHIVE_PATH)
     new = 0
     with open(common.FAILURES_PATH, "a", encoding="utf-8") as fh:
         for r in records:
@@ -259,6 +267,88 @@ def append_records(records):
             fh.write(json.dumps(r, ensure_ascii=False) + "\n")
             new += 1
     return new
+
+
+def _parse_ts(ts):
+    """Parse an ISO-8601 record timestamp (with trailing 'Z') to an aware
+    datetime, or None if it is missing/unparseable. Python 3.9 compatible."""
+    if not ts or not isinstance(ts, str):
+        return None
+    t = ts.strip()
+    if t.endswith("Z"):
+        t = t[:-1] + "+00:00"
+    try:
+        dt = datetime.datetime.fromisoformat(t)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt
+
+
+def _rewrite_jsonl(path, records):
+    """Atomically replace a jsonl file with exactly `records` (temp file + os.replace)."""
+    common.ensure_data_dir()
+    dirn = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=dirn, prefix=".tmp-audit-", suffix=".jsonl")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            for r in records:
+                fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+        os.replace(tmp, path)
+    except Exception:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def archive_stale(retention_days=None, now=None):
+    """Move records older than the retention window out of the active log and
+    into the audit trail. Records are MOVED, never deleted. Returns
+    (archived_count, kept_count).
+
+    Records with a missing/unparseable timestamp are conservatively KEPT active
+    (we never archive something we can't date). The append to the archive is
+    deduped, and the active log is rewritten atomically, so this is safe to run
+    repeatedly (idempotent) and from the fail-safe hook path.
+    """
+    if retention_days is None:
+        retention_days = common.DEFAULT_RETENTION_DAYS
+    active_path = common.FAILURES_PATH
+    if not os.path.exists(active_path):
+        return (0, 0)
+    if now is None:
+        now = datetime.datetime.now(datetime.timezone.utc)
+    cutoff = now - datetime.timedelta(days=retention_days)
+
+    keep = []
+    stale = []
+    for rec in _iter_lines(active_path):
+        ts = _parse_ts(rec.get("ts", ""))
+        if ts is not None and ts < cutoff:
+            stale.append(rec)
+        else:
+            keep.append(rec)
+
+    if not stale:
+        return (0, len(keep))
+
+    # Append the aged-out records to the trail (deduped), THEN drop them from
+    # the active log. Order matters: if the rewrite fails, nothing is lost —
+    # the records are already safe in the archive and dedup prevents doubling.
+    common.ensure_data_dir()
+    seen = _existing_keys(common.ARCHIVE_PATH)
+    with open(common.ARCHIVE_PATH, "a", encoding="utf-8") as fh:
+        for r in stale:
+            key = (r.get("session_id", ""), r.get("tool_use_id", ""))
+            if key in seen:
+                continue
+            seen.add(key)
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+    _rewrite_jsonl(active_path, keep)
+    return (len(stale), len(keep))
 
 
 def main(argv):
@@ -273,8 +363,19 @@ def main(argv):
             except OSError:
                 continue
     added = append_records(all_records)
-    print(f"sandbox-audit: mined {len(all_records)} failure(s), "
-          f"{added} new -> {common.FAILURES_PATH}")
+    # Rolling maintenance: age stale records out to the audit trail so the
+    # active log stays focused. Fail-safe — this must never break the capture
+    # or SessionEnd-hook path, so any error here is swallowed.
+    moved = 0
+    try:
+        moved, _kept = archive_stale()
+    except Exception:
+        moved = 0
+    msg = (f"sandbox-audit: mined {len(all_records)} failure(s), "
+           f"{added} new -> {common.FAILURES_PATH}")
+    if moved:
+        msg += f"; archived {moved} stale -> {common.ARCHIVE_PATH}"
+    print(msg)
     return 0
 
 
