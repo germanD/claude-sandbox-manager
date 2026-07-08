@@ -2,12 +2,15 @@
 """Cluster captured failures and suggest sandbox/permission fixes.
 
 Usage:
-    doctor.py                 # report from ~/.claude/sandbox-audit/failures.jsonl
-    doctor.py --scan-history  # mine ALL ~/.claude/projects/**/*.jsonl directly
-    doctor.py --top N         # show at most N clusters (default 15)
-    doctor.py --verbose       # also list which sessions/transcripts were reviewed
+    doctor.py                   # report from ~/.claude/sandbox-audit/failures.jsonl
+    doctor.py --scan-history    # mine ALL ~/.claude/projects/**/*.jsonl directly
+    doctor.py --top N           # show at most N clusters (default 15)
+    doctor.py --verbose         # also list which sessions/transcripts were reviewed
+    doctor.py --include-archive # also read the aged-out audit trail
+    doctor.py --archive         # move stale records to the audit trail now, then exit
 
-Suggestions are ADVISORY only. This MVP never edits settings.json.
+Suggestions are ADVISORY only. This MVP never edits settings.json. Aged-out
+records are MOVED to an audit trail (failures.archive.jsonl), never deleted.
 """
 
 import argparse
@@ -25,11 +28,11 @@ _READONLY_CMDS = ("ls", "find", "cat", "grep", "rg", "head", "tail", "stat",
                   "pwd", "echo", "wc", "tree", "file", "which")
 
 
-def _load_from_log():
+def _read_jsonl(path):
     records = []
-    if not os.path.exists(common.FAILURES_PATH):
+    if not os.path.exists(path):
         return records
-    with open(common.FAILURES_PATH, "r", encoding="utf-8", errors="replace") as fh:
+    with open(path, "r", encoding="utf-8", errors="replace") as fh:
         for line in fh:
             line = line.strip()
             if not line:
@@ -38,6 +41,13 @@ def _load_from_log():
                 records.append(json.loads(line))
             except json.JSONDecodeError:
                 continue
+    return records
+
+
+def _load_from_log(include_archive=False):
+    records = _read_jsonl(common.FAILURES_PATH)
+    if include_archive:
+        records.extend(_read_jsonl(common.ARCHIVE_PATH))
     return records
 
 
@@ -195,15 +205,32 @@ def main(argv):
     ap.add_argument("--top", type=int, default=15, help="max clusters to show")
     ap.add_argument("--verbose", "-v", action="store_true",
                     help="also list which sessions/transcripts were reviewed")
+    ap.add_argument("--include-archive", action="store_true",
+                    help="also read the aged-out audit trail (failures.archive.jsonl)")
+    ap.add_argument("--archive", action="store_true",
+                    help="move stale records (older than --retention-days) into "
+                         "the audit trail now, then exit")
+    ap.add_argument("--retention-days", type=int,
+                    default=common.DEFAULT_RETENTION_DAYS,
+                    help="age in days before a record is archived (default: %(default)s)")
     args = ap.parse_args(argv)
+
+    if args.archive:
+        moved, kept = capture.archive_stale(retention_days=args.retention_days)
+        print(f"sandbox-audit: archived {moved} stale record(s) older than "
+              f"{args.retention_days}d -> {common.ARCHIVE_PATH}")
+        print(f"active log now holds {kept} record(s) -> {common.FAILURES_PATH}")
+        return 0
 
     if args.scan_history:
         records, scanned = _load_from_history()
         src = f"{common.PROJECTS_DIR}/*/*.jsonl"
     else:
-        records = _load_from_log()
+        records = _load_from_log(include_archive=args.include_archive)
         scanned = _sources_from_log(records)
         src = common.FAILURES_PATH
+        if args.include_archive:
+            src += f" (+ {common.ARCHIVE_PATH})"
         if not records and not os.path.exists(common.FAILURES_PATH):
             print(f"sandbox-audit: no log at {common.FAILURES_PATH} yet. "
                   f"Run with --scan-history to mine existing transcripts.")
