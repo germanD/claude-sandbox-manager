@@ -129,6 +129,16 @@ current. Preserve these properties:
 - Bump `version` in `.claude-plugin/plugin.json` for user-visible behavior
   changes (the git history follows `v0.1.x`).
 
+## Agent Roles
+
+| Agent | File | Responsibility |
+|---|---|---|
+| `pmo` | `.claude/agents/pmo.md` | Milestone/PLAN.md sync, PR label verification, release prep — no code |
+
+Spawn the `pmo` agent for any project-admin task: labeling PRs, syncing
+PLAN.md with GitHub, closing milestones, or auditing unlabeled history.
+Do not ask it to write code; hand implementation back to the main agent.
+
 ## Git & GitHub Workflow
 
 ### Never commit directly to `main`
@@ -146,7 +156,13 @@ appears to require it, surface the proposed command and let the human run it.
 - Reference the issues a PR closes with `Closes #N` / `Fixes #N` in the body.
 - Include a test plan showing `py_compile` and the `unittest` run, and evidence
   they actually passed.
+- Every PR must carry at least one area label (`capture`, `doctor`, `redact`,
+  `hook`, `archive`, `plugin`, `tests`); inherit from the linked issue or apply directly.
 - Do not merge your own PR — wait for approval.
+
+### Roadmap
+Open work is tracked in `PLAN.md` with one checkbox per GitHub issue.
+PMO keeps `PLAN.md` and milestones in sync — see `.claude/agents/pmo.md`.
 
 ## What's Not Here Yet
 
