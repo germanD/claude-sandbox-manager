@@ -1,9 +1,17 @@
 # scratch / exports
 .tmp/
 
-# local onboarding export (one-shot, not part of the plugin)
-ONBOARDING.md
-
 # python
 __pycache__/
 *.pyc
+*.pyo
+
+# editors
+.idea/
+.vscode/
+*.sw[po]
+*~
+\#*\#
+
+# claude code local config (not project settings)
+.claude/settings.local.json

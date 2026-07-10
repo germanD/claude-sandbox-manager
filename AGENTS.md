@@ -3,6 +3,13 @@
 This file provides context for AI coding agents (Claude Code, and others)
 working on the `sandbox-audit` plugin.
 
+**Key references** (read these before making architectural decisions):
+
+- `ARCHITECTURE.md` — as-built data flow, component descriptions, record schema,
+  and critical invariants. Authoritative for the current implementation.
+- `docs/phase2-design.md` — design sketches for the three v0.2.0 candidates.
+- `ONBOARDING.md` — contributor quick-start and historical design notes.
+
 ## Project Overview
 
 `sandbox-audit` is a Claude Code plugin that mines Claude Code session
@@ -63,10 +70,11 @@ introduce a code path that can propagate a non-zero exit or block on I/O.
 Privacy beats completeness. Every record written to `failures.jsonl` must go
 through the two-layer privacy gate in `lib/redact.py`:
 
-- **Denylist** (`is_denied` / `denylist.txt`): if a record's command, path, cwd,
-  or error text contains a denylisted substring (e.g. `priv-misc`, always on),
-  the sensitive parts are **masked** (not the raw values persisted). The record
-  keeps only its learnable *shape*.
+- **Denylist** (`is_denied` / `denylist.txt`): if a record's command,
+  path, cwd, or error text contains a denylisted substring (e.g. a
+  repository with local documents, private information, etc., always
+  on), the sensitive parts are **masked** (not the raw values
+  persisted). The record keeps only its learnable *shape*.
 - **Secret scrubbing** (`redact` / `_SECRET_PATTERNS`): tokens, keys, auth
   headers, and `KEY=value` secrets are scrubbed from any text that IS kept.
 

@@ -41,6 +41,9 @@ session's `transcript_path` and extracts real outcomes from the JSONL (tool
 failures are flagged with `is_error: true`). It does **not** depend on real-time
 failure-hook events, whose names/payloads vary by version.
 
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the full component breakdown, record
+schema, and critical invariants.
+
 ## Install (development)
 
 ```bash
