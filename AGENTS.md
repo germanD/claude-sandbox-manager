@@ -5,8 +5,8 @@ working on the `sandbox-audit` plugin.
 
 **Key references** (read these before making architectural decisions):
 
-- `ARCHITECTURE.md` — as-built data flow, component descriptions, record schema,
-  and critical invariants. Authoritative for the current implementation.
+- `kb/index.md` — Knowledge Base index: spec, invariants, glossary, task-driven guide.
+- `ARCHITECTURE.md` — as-built data flow, component descriptions, record schema.
 - `docs/phase2-design.md` — design sketches for the three v0.2.0 candidates.
 - `ONBOARDING.md` — contributor quick-start and historical design notes.
 
@@ -39,6 +39,12 @@ python -m unittest discover -s tests -v        # run the test suite (matches CI)
 ## Project Structure
 
 ```
+kb/
+├── index.md            # KB master routing guide
+├── spec.md             # product spec: what it does, who for, non-goals
+├── properties.md       # invariants P1–P7 (authoritative)
+├── glossary.md         # domain terms
+└── by-task.md          # task-driven index: which files to read per task
 .claude-plugin/
 ├── plugin.json         # plugin manifest (name, version, keywords)
 └── marketplace.json    # local dev marketplace pointing at ./
@@ -58,69 +64,20 @@ tests/
 └── test_*.py           # unittest suites (capture, doctor, redact, manifests)
 ```
 
-## Critical Invariants — Read Before Making Changes
+## Critical Invariants
 
-### 1. The audit hook must NEVER fail a session
-`hooks/session-end.sh` is fail-safe by contract: it runs `set -u`, swallows all
-errors, and always `exit 0`. A broken audit hook must be invisible to the user —
-it must not break, delay, or surface errors during a session's teardown. Never
-introduce a code path that can propagate a non-zero exit or block on I/O.
+The seven invariants are defined and maintained in [`kb/properties.md`](kb/properties.md).
+That file is authoritative — if it conflicts with prose elsewhere, the KB wins.
 
-### 2. Nothing is persisted until it passes through `redact.py`
-Privacy beats completeness. Every record written to `failures.jsonl` must go
-through the two-layer privacy gate in `lib/redact.py`:
-
-- **Denylist** (`is_denied` / `denylist.txt`): if a record's command,
-  path, cwd, or error text contains a denylisted substring (e.g. a
-  repository with local documents, private information, etc., always
-  on), the sensitive parts are **masked** (not the raw values
-  persisted). The record keeps only its learnable *shape*.
-- **Secret scrubbing** (`redact` / `_SECRET_PATTERNS`): tokens, keys, auth
-  headers, and `KEY=value` secrets are scrubbed from any text that IS kept.
-
-The stored `signature` must be built from the **safe (masked/cleaned)** values,
-never the raw command or error — so it clusters without ever leaking.
-
-### 3. `doctor` is advisory only
-`lib/doctor.py` and the `doctor` skill diagnose and suggest. This MVP **never
-edits `settings.json`** or any config file. Do not add auto-fix behavior without
-an explicit decision to change that contract; the SKILL.md says so too.
-
-### 4. Do not classify runtime failures as permission denials
-Classification in `capture.py` deliberately does **not** match a bare
-`"permission denied"`. The seccomp/sandbox stderr
-(`apply-seccomp: ... Permission denied`) is a *runtime* failure, not a Claude
-Code permission gate. Only the specific permission-gate markers
-(`_PERM_MARKERS`, and the `"permission to use ... has been denied"` deny-rule
-message) count as `permission_denied`. There is a regression test guarding this
-(`tests/test_capture.py::TestClassify`).
-
-### 5. Records are deduped by `(session_id, tool_use_id)`
-`append_records` is idempotent on that key so re-running the hook or
-`--scan-history` never double-counts a failure. Preserve this when changing the
-record schema or persistence path.
-
-### 6. Fixed, predictable data directory
-Both the hook and the skill agree on `~/.claude/sandbox-audit/failures.jsonl`
-(active log) and `~/.claude/sandbox-audit/failures.archive.jsonl` (audit trail)
-via `lib/common.py` (they must not depend on plugin-only env vars being exposed
-to skills). Change these paths in one place only.
-
-### 7. Aged-out records are MOVED to the audit trail, never deleted
-`capture.archive_stale` rolls records older than `DEFAULT_RETENTION_DAYS` out of
-the active log into `failures.archive.jsonl` so `doctor` stays focused on what's
-current. Preserve these properties:
-- **Move, not delete.** Stale records are appended to the archive *before* being
-  dropped from the active log — nothing is lost even if the rewrite fails.
-- **Fail-safe.** `main` calls `archive_stale` inside a `try/except` that swallows
-  everything; it must never break the capture / SessionEnd-hook path (invariant #1).
-- **Dedup spans both files.** `append_records` dedups against the active log AND
-  the archive, so a re-scan of an old transcript can never resurrect an archived
-  record into the active log (extends invariant #5).
-- **Undatable records stay active.** Records with a missing/unparseable `ts` are
-  never archived — we don't age out something we can't date.
-- `doctor --archive` forces a rotation now; `doctor --include-archive` reports
-  over the active log + trail together.
+| # | Name | Core rule |
+|---|---|---|
+| P1 | Hook fail-safety | `session-end.sh` always exits 0; no code path may propagate a non-zero exit |
+| P2 | Privacy-gate completeness | Nothing written to disk without passing `redact.py`; `signature` built from safe values only |
+| P3 | Doctor is advisory | `doctor.py` never edits `settings.json` or any config file |
+| P4 | Classification boundary | Bare `"permission denied"` is a runtime failure, not a CC permission denial |
+| P5 | Dedup spans both files | `append_records` checks active log AND archive; re-scans never double-count |
+| P6 | Single path source | `lib/common.py` only; hook and skill never hardcode paths |
+| P7 | Archive is move-not-delete | Records appended to archive before active log is rewritten |
 
 ## Code Conventions
 
@@ -139,13 +96,47 @@ current. Preserve these properties:
 
 ## Agent Roles
 
-| Agent | File | Responsibility |
-|---|---|---|
-| `pmo` | `.claude/agents/pmo.md` | Milestone/PLAN.md sync, PR label verification, release prep — no code |
+| Agent | Responsibility |
+|---|---|
+| `pmo` | Milestone/PLAN.md sync, PR label verification, release prep — no code |
+| `capture-specialist` | Transcript parsing, classification, noise filtering, signature generation, persistence/dedup |
+| `doctor-specialist` | Clustering heuristics, suggestion text, CLI flags, `--scan-history` loading path |
+| `redact-guardian` | Privacy gate changes: secret patterns, denylist masking, any code touching `redact.py` |
 
-Spawn the `pmo` agent for any project-admin task: labeling PRs, syncing
-PLAN.md with GitHub, closing milestones, or auditing unlabeled history.
-Do not ask it to write code; hand implementation back to the main agent.
+### pmo
+
+Spawn for any project-admin task: labeling PRs, syncing PLAN.md with GitHub,
+closing milestones, or auditing unlabeled history. Does not write code — hands
+implementation back to the main agent. See `.claude/agents/pmo.md`.
+
+### capture-specialist
+
+Spawn when implementing changes to `lib/capture.py`: new failure classifications,
+noise filters, signature patterns, or changes to `append_records` / `archive_stale`.
+
+- Must preserve P1 (hook fail-safety), P2 (privacy gate), P4 (classification boundary), P5 (dedup)
+- Any signature change must use safe (masked/cleaned) values only — never raw transcript text
+- Consult `kb/by-task.md` → "Implement a new failure heuristic" for the prescribed reading order
+- Changes to `append_records` or `archive_stale` must verify P5 and P7
+
+### doctor-specialist
+
+Spawn when modifying `lib/doctor.py`: new `suggest()` conditions, clustering
+changes, new CLI flags, or changes to the `--scan-history` loading path.
+
+- Suggestions are advisory only — P3 forbids any config-editing behavior
+- Clustering depends on `signature`; changes to signature format in `capture.py` are a breaking dependency
+- Consult `kb/by-task.md` → "Add a new doctor suggestion" or "Add a CLI flag to doctor"
+
+### redact-guardian
+
+Spawn when touching `lib/redact.py`, `lib/denylist.txt`, or any code that
+intersects the privacy gate.
+
+- Privacy beats completeness (P2): if in doubt, mask or drop
+- New secret patterns need a fixture in `tests/fixtures/` and a case in `tests/test_redact.py`
+- Denylist behavior changes are user-visible — bump `version` in `.claude-plugin/plugin.json`
+- Signature must always be built from the masked/scrubbed values, never raw inputs
 
 ## Git & GitHub Workflow
 
@@ -176,6 +167,6 @@ PMO keeps `PLAN.md` and milestones in sync — see `.claude/agents/pmo.md`.
 
 This is a Phase-1 MVP. Deliberately out of scope for now:
 
-- No automatic editing of `settings.json` (diagnosis only — see invariant #3).
+- No automatic editing of `settings.json` (diagnosis only — see invariant P3).
 - No cross-machine sync of the failures log.
 - No UI beyond the `doctor` skill's text report.

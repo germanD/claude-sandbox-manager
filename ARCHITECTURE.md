@@ -3,6 +3,7 @@
 This document describes the current implementation (v0.1.x, Phase-1 MVP).
 For the original design notes and motivation see `ONBOARDING.md`.
 For agent/contributor guidance see `AGENTS.md`.
+For the authoritative invariants, domain glossary, and task-driven reading guide see `kb/index.md`.
 
 ---
 
@@ -221,30 +222,18 @@ values, never from the raw transcript text.
 
 ## Critical Invariants
 
-1. **Hook never fails the session.** `session-end.sh` always exits 0 and swallows
-   all errors. `capture.py` wraps `archive_stale()` in a bare `try/except`. Nothing
-   can propagate a non-zero exit or block I/O at session teardown.
+Invariants P1–P7 are defined and maintained in [`kb/properties.md`](kb/properties.md) —
+read that file before making any change that touches a boundary listed here.
 
-2. **Nothing written without passing the privacy gate.** Every record goes through
-   `redact.py` before `append_records()`. The `signature` is built from the safe
-   (masked/cleaned) values, never from raw inputs.
-
-3. **Doctor is advisory only.** `doctor.py` and the skill never edit `settings.json`
-   or any other config file. Lifting this requires an explicit Phase-2 decision.
-
-4. **Runtime `"permission denied"` ≠ CC permission denial.** `classify()` does not
-   match bare `"permission denied"`. Only CC-specific permission-gate markers count.
-   `TestClassify` is the regression test for this boundary.
-
-5. **Dedup spans both files.** `append_records()` checks against both the active log
-   AND the archive. Archiving a record can never let a later re-scan resurrect it
-   into the active log.
-
-6. **Single source of truth for paths.** `lib/common.py` only. Hook and skill both
-   import from it.
-
-7. **Archive is move, not delete.** `archive_stale()` appends to the archive before
-   rewriting the active log. A crash between the two steps loses nothing.
+| # | Name | Core rule |
+|---|---|---|
+| P1 | Hook fail-safety | `session-end.sh` always exits 0; no code path may propagate a non-zero exit |
+| P2 | Privacy-gate completeness | Nothing written to disk without passing `redact.py`; `signature` built from safe values only |
+| P3 | Doctor is advisory | `doctor.py` never edits `settings.json` or any config file |
+| P4 | Classification boundary | Bare `"permission denied"` is a runtime failure, not a CC permission denial |
+| P5 | Dedup spans both files | `append_records` checks active log AND archive; re-scans never double-count |
+| P6 | Single path source | `lib/common.py` only; hook and skill never hardcode paths |
+| P7 | Archive is move-not-delete | Records appended to archive before active log is rewritten |
 
 ---
 
