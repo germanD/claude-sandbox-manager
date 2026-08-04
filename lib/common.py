@@ -13,6 +13,10 @@ FAILURES_PATH = os.path.join(DATA_DIR, "failures.jsonl")
 # full history is still recoverable. See capture.archive_stale.
 ARCHIVE_PATH = os.path.join(DATA_DIR, "failures.archive.jsonl")
 
+# Timestamp written by the SessionStart banner after it fires; used to
+# suppress repeated banners for the same failure clusters.
+LAST_REPORTED_PATH = os.path.join(DATA_DIR, "last_reported.json")
+
 # Default age (in days) before a record rolls off the active log into the
 # audit trail. The capture/hook path applies this automatically.
 DEFAULT_RETENTION_DAYS = 7
