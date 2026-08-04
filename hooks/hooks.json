@@ -1,6 +1,16 @@
 {
-  "description": "Capture failing tool calls from the session transcript when the session ends",
+  "description": "sandbox-audit: capture failing tool calls at session end; show a brief banner at session start if new failures have appeared",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"
+          }
+        ]
+      }
+    ],
     "SessionEnd": [
       {
         "hooks": [

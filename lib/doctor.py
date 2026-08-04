@@ -14,6 +14,7 @@ records are MOVED to an audit trail (failures.archive.jsonl), never deleted.
 """
 
 import argparse
+import datetime
 import glob
 import json
 import os
@@ -26,6 +27,55 @@ import redact   # noqa: E402
 
 _READONLY_CMDS = ("ls", "find", "cat", "grep", "rg", "head", "tail", "stat",
                   "pwd", "echo", "wc", "tree", "file", "which")
+
+
+def _read_last_reported():
+    """Return the ISO timestamp stored in last_reported.json, or '' if absent."""
+    if not os.path.exists(common.LAST_REPORTED_PATH):
+        return ""
+    try:
+        with open(common.LAST_REPORTED_PATH, "r", encoding="utf-8") as fh:
+            return json.load(fh).get("ts", "")
+    except (OSError, json.JSONDecodeError, ValueError):
+        return ""
+
+
+def _write_last_reported():
+    """Stamp the current UTC time into last_reported.json."""
+    ts = datetime.datetime.now(datetime.timezone.utc).strftime(
+        "%Y-%m-%dT%H:%M:%S.000Z")
+    dirn = os.path.dirname(common.LAST_REPORTED_PATH)
+    if dirn:
+        os.makedirs(dirn, exist_ok=True)
+    with open(common.LAST_REPORTED_PATH, "w", encoding="utf-8") as fh:
+        json.dump({"ts": ts}, fh)
+
+
+def banner_check():
+    """Print a one-liner if new failures have appeared since the last banner.
+
+    Reads common.FAILURES_PATH and common.LAST_REPORTED_PATH; updates
+    last_reported.json when a banner is printed.  All errors are swallowed so
+    that a broken banner hook is invisible to the user (P1).
+    Returns True if a banner was printed, False otherwise.
+    """
+    try:
+        records = _read_jsonl(common.FAILURES_PATH)
+        if not records:
+            return False
+        last_ts = _read_last_reported()
+        new = [r for r in records if r.get("ts", "") > last_ts]
+        if not new:
+            return False
+        n_clusters = len(cluster(new))
+        print(
+            f"sandbox-audit: {len(new)} new failure(s) across {n_clusters} "
+            f"cluster(s) since last report — run /sandbox-audit:doctor for details"
+        )
+        _write_last_reported()
+        return True
+    except Exception:
+        return False
 
 
 def _read_jsonl(path):
@@ -200,6 +250,9 @@ def report(clusters, top):
 
 def main(argv):
     ap = argparse.ArgumentParser(description="sandbox-audit doctor")
+    ap.add_argument("--banner", action="store_true",
+                    help="print a one-liner if new failures exist since last "
+                         "report; used by the SessionStart hook")
     ap.add_argument("--scan-history", action="store_true",
                     help="mine all session transcripts directly instead of the log")
     ap.add_argument("--top", type=int, default=15, help="max clusters to show")
@@ -214,6 +267,10 @@ def main(argv):
                     default=common.DEFAULT_RETENTION_DAYS,
                     help="age in days before a record is archived (default: %(default)s)")
     args = ap.parse_args(argv)
+
+    if args.banner:
+        banner_check()
+        return 0
 
     if args.archive:
         moved, kept = capture.archive_stale(retention_days=args.retention_days)
