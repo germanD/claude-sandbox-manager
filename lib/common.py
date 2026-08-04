@@ -25,6 +25,35 @@ DEFAULT_RETENTION_DAYS = 7
 PROJECTS_DIR = os.path.expanduser("~/.claude/projects")
 
 
-def ensure_data_dir():
-    os.makedirs(DATA_DIR, exist_ok=True)
-    return DATA_DIR
+def ensure_data_dir(data_dir=None):
+    target = data_dir if data_dir is not None else DATA_DIR
+    os.makedirs(target, exist_ok=True)
+    return target
+
+
+def scope_paths(cwd=None):
+    """Return (data_dir, failures_path, archive_path) scoped to cwd.
+
+    Master sessions (cwd is $HOME or $HOME/.claude) and absent/empty CWD use
+    the global data dir.  All other CWDs get a per-project sub-directory whose
+    name is the normalised absolute path with each '/' replaced by '-' — the
+    same slug convention Claude Code uses for ~/.claude/projects/<slug>/.
+
+    This is the single source of truth for all path decisions (P6, P8).
+    """
+    home = os.path.expanduser("~")
+    claude_home = os.path.join(home, ".claude")
+
+    if cwd:
+        cwd_abs = os.path.normpath(os.path.abspath(os.path.expanduser(str(cwd))))
+        master_dirs = {os.path.normpath(home), os.path.normpath(claude_home)}
+        if cwd_abs not in master_dirs:
+            slug = cwd_abs.replace(os.sep, "-")
+            data_dir = os.path.join(DATA_DIR, "projects", slug)
+            return (
+                data_dir,
+                os.path.join(data_dir, "failures.jsonl"),
+                os.path.join(data_dir, "failures.archive.jsonl"),
+            )
+
+    return (DATA_DIR, FAILURES_PATH, ARCHIVE_PATH)

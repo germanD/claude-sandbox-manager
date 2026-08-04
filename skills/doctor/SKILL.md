@@ -10,6 +10,19 @@ Surface recurring tool failures (sandbox/seccomp errors, permission denials,
 command failures) and propose **advisory** config fixes. This never edits
 `settings.json` — it only reports and suggests.
 
+## Scope
+
+By default `/doctor` reads the **project-local** failures log for the current
+working directory (`~/.claude/sandbox-audit/projects/<slug>/failures.jsonl`).
+
+- Sessions whose CWD is `~` or `~/.claude` are **master sessions** — they write
+  to and read from the **global** log (`~/.claude/sandbox-audit/failures.jsonl`).
+- All other sessions are **project sessions** — isolated to their own log.
+
+Use `--global` to read the global log regardless of where you are invoked.
+Records written before this scoping was introduced remain in the global log and
+are only visible via `--global`.
+
 ## How to run
 
 The clustering logic lives in `lib/doctor.py` inside this plugin. Locate and run it:
@@ -24,25 +37,31 @@ The clustering logic lives in `lib/doctor.py` inside this plugin. Locate and run
    fi
    ```
 
-2. Run it. By default it reads the captured log
-   (`~/.claude/sandbox-audit/failures.jsonl`):
+2. Run it. By default it reads the project-scoped log for the current CWD:
 
    ```bash
    python3 "$DOCTOR"
    ```
 
-3. If the log is empty or missing (e.g. first run, before any SessionEnd hook
+3. To see failures from all master sessions (the global log):
+
+   ```bash
+   python3 "$DOCTOR" --global
+   ```
+
+4. If the log is empty or missing (e.g. first run, before any SessionEnd hook
    has fired), mine the existing transcripts directly:
 
    ```bash
-   python3 "$DOCTOR" --scan-history
+   python3 "$DOCTOR" --scan-history          # project scope
+   python3 "$DOCTOR" --global --scan-history # global scope (all projects)
    ```
 
-   `--scan-history` reviews **every** session transcript on disk
-   (`~/.claude/projects/*/*.jsonl`) — all projects and all sessions, including
-   other live ones (up to what they have flushed), not just the current session.
+   `--scan-history --global` reviews **every** session transcript on disk
+   (`~/.claude/projects/*/*.jsonl`). Without `--global`, only transcripts
+   whose project slug matches the current CWD are scanned.
 
-4. Add `--verbose` to also list exactly which sessions/transcripts were
+5. Add `--verbose` to also list exactly which sessions/transcripts were
    reviewed (with per-session failure counts; denylisted project names are
    shown as `[redacted]`):
 

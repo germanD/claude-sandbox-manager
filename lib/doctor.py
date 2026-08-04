@@ -2,14 +2,20 @@
 """Cluster captured failures and suggest sandbox/permission fixes.
 
 Usage:
-    doctor.py                   # report from ~/.claude/sandbox-audit/failures.jsonl
-    doctor.py --scan-history    # mine ALL ~/.claude/projects/**/*.jsonl directly
+    doctor.py                   # report from the scoped failures log for CWD
+    doctor.py --global          # report from the global ~/.claude/sandbox-audit/failures.jsonl
+    doctor.py --scan-history    # mine session transcripts for the current scope
     doctor.py --top N           # show at most N clusters (default 15)
     doctor.py --verbose         # also list which sessions/transcripts were reviewed
     doctor.py --include-archive # also read the aged-out audit trail
     doctor.py --archive         # move stale records to the audit trail now, then exit
 
-Suggestions are ADVISORY only. This MVP never edits settings.json. Aged-out
+Scope: by default reads the project-local log for the current working directory.
+Use --global to read the shared log that covers all master sessions (CWD = ~
+or ~/.claude).  Pre-scope records written before this feature landed remain in
+the global log and are visible via --global.
+
+Suggestions are ADVISORY only. This tool never edits settings.json. Aged-out
 records are MOVED to an audit trail (failures.archive.jsonl), never deleted.
 """
 
@@ -94,20 +100,28 @@ def _read_jsonl(path):
     return records
 
 
-def _load_from_log(include_archive=False):
-    records = _read_jsonl(common.FAILURES_PATH)
+def _load_from_log(failures_path, archive_path, include_archive=False):
+    records = _read_jsonl(failures_path)
     if include_archive:
-        records.extend(_read_jsonl(common.ARCHIVE_PATH))
+        records.extend(_read_jsonl(archive_path))
     return records
 
 
-def _load_from_history():
-    """Mine all transcripts. Returns (records, scanned) where scanned is a list
-    of {project, session, failures} describing every file reviewed (project name
-    redacted if denylisted, so --verbose can't leak a private path)."""
+def _load_from_history(cwd=None):
+    """Mine transcripts in scope. Returns (records, scanned) where scanned is a
+    list of {project, session, failures} for every file reviewed (project name
+    redacted if denylisted, so --verbose can't leak a private path).
+
+    cwd=None → global scope: all projects under PROJECTS_DIR.
+    cwd=<path> → project scope: only the slug directory matching that path.
+    """
     records = []
     scanned = []
-    pattern = os.path.join(common.PROJECTS_DIR, "*", "*.jsonl")
+    if cwd is None:
+        pattern = os.path.join(common.PROJECTS_DIR, "*", "*.jsonl")
+    else:
+        slug = os.path.normpath(os.path.abspath(cwd)).replace(os.sep, "-")
+        pattern = os.path.join(common.PROJECTS_DIR, slug, "*.jsonl")
     for path in sorted(glob.glob(pattern)):
         try:
             recs = capture.mine_transcript(path)
@@ -253,8 +267,10 @@ def main(argv):
     ap.add_argument("--banner", action="store_true",
                     help="print a one-liner if new failures exist since last "
                          "report; used by the SessionStart hook")
+    ap.add_argument("--global", dest="global_scope", action="store_true",
+                    help="read from the global failures log regardless of CWD")
     ap.add_argument("--scan-history", action="store_true",
-                    help="mine all session transcripts directly instead of the log")
+                    help="mine session transcripts directly instead of the log")
     ap.add_argument("--top", type=int, default=15, help="max clusters to show")
     ap.add_argument("--verbose", "-v", action="store_true",
                     help="also list which sessions/transcripts were reviewed")
@@ -272,27 +288,46 @@ def main(argv):
         banner_check()
         return 0
 
+    # Resolve scope: --global overrides to the global log; otherwise use CWD.
+    if args.global_scope:
+        _data_dir, failures_path, archive_path = common.scope_paths(None)
+        scope_label = "global"
+        scan_cwd = None
+    else:
+        cwd = os.getcwd()
+        _data_dir, failures_path, archive_path = common.scope_paths(cwd)
+        is_global = (failures_path == common.FAILURES_PATH)
+        scope_label = "global" if is_global else f"project {cwd}"
+        scan_cwd = None if is_global else cwd
+
     if args.archive:
-        moved, kept = capture.archive_stale(retention_days=args.retention_days)
+        moved, kept = capture.archive_stale(retention_days=args.retention_days,
+                                            failures_path=failures_path,
+                                            archive_path=archive_path)
         print(f"sandbox-audit: archived {moved} stale record(s) older than "
-              f"{args.retention_days}d -> {common.ARCHIVE_PATH}")
-        print(f"active log now holds {kept} record(s) -> {common.FAILURES_PATH}")
+              f"{args.retention_days}d -> {archive_path}")
+        print(f"active log now holds {kept} record(s) -> {failures_path}")
         return 0
 
     if args.scan_history:
-        records, scanned = _load_from_history()
-        src = f"{common.PROJECTS_DIR}/*/*.jsonl"
+        records, scanned = _load_from_history(cwd=scan_cwd)
+        if scan_cwd is None:
+            src = f"{common.PROJECTS_DIR}/*/*.jsonl"
+        else:
+            slug = os.path.normpath(os.path.abspath(scan_cwd)).replace(os.sep, "-")
+            src = f"{common.PROJECTS_DIR}/{slug}/*.jsonl"
     else:
-        records = _load_from_log(include_archive=args.include_archive)
+        records = _load_from_log(failures_path, archive_path,
+                                 include_archive=args.include_archive)
         scanned = _sources_from_log(records)
-        src = common.FAILURES_PATH
+        src = failures_path
         if args.include_archive:
-            src += f" (+ {common.ARCHIVE_PATH})"
-        if not records and not os.path.exists(common.FAILURES_PATH):
-            print(f"sandbox-audit: no log at {common.FAILURES_PATH} yet. "
+            src += f" (+ {archive_path})"
+        if not records and not os.path.exists(failures_path):
+            print(f"sandbox-audit: no log at {failures_path} yet. "
                   f"Run with --scan-history to mine existing transcripts.")
             return 0
-    print(f"(source: {src})\n")
+    print(f"(scope: {scope_label} | source: {src})\n")
     if args.verbose:
         print_sources(scanned)
     report(cluster(records), args.top)

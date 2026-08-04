@@ -92,12 +92,13 @@ persistence path, verify that the dedup check covers both
 
 **`lib/common.py` is the only place where data paths are defined.**
 
-Both the hook and the skill import `DATA_DIR`, `FAILURES_PATH`, and `ARCHIVE_PATH`
-from `lib/common.py`. They must not depend on plugin-only environment variables
-being exposed to skills.
+Both the hook and the skill import `DATA_DIR`, `FAILURES_PATH`, `ARCHIVE_PATH`,
+and `scope_paths()` from `lib/common.py`. They must not depend on plugin-only
+environment variables being exposed to skills.
 
 **Constraint:** Never hardcode a path in `session-end.sh`, `capture.py`,
-`doctor.py`, or anywhere else. Change paths in `common.py` only.
+`doctor.py`, or anywhere else. Use `common.scope_paths(cwd)` to resolve all
+runtime paths; change the constant definitions in `common.py` only.
 
 ---
 
@@ -118,3 +119,22 @@ The move is crash-safe:
 
 **Constraint:** Do not delete records from either file without appending to the
 other first. Preserve the fail-safe wrapping in `capture.main()` (P1).
+
+---
+
+## P8: Scope Isolation
+
+**Capture writes to exactly one log per session; doctor reads from exactly one
+log per invocation.**
+
+`common.scope_paths(cwd)` determines the log directory: master sessions
+(CWD = `~` or `~/.claude`) map to the global `DATA_DIR`; all other project
+CWDs map to `DATA_DIR/projects/<slug>/`. `doctor.py` resolves scope from
+`os.getcwd()` at invocation time; `--global` overrides to the global log.
+Neither path may cross-read the other scope's log without that explicit
+override.
+
+**Constraint:** Any code that reads from or writes to a log file must call
+`common.scope_paths()` to obtain the path — never construct a path by hand or
+read from a different scope's files as a fallback. Pre-scope records in the
+global log remain accessible only via `doctor --global`.

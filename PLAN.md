@@ -20,15 +20,28 @@ pipeline. No new subsystems; feature scope is fixed by Phase-1 invariants.
 
 ### Open
 
-*(file issues to populate this section)*
+- [ ] #11 test: TestPersistenceDedup does not isolate common.ARCHIVE_PATH
+- [ ] #12 test: no integration tests for doctor.main() CLI argument paths
+- [ ] #13 test: capture.main() entry point and archive-swallow path have no test
+- [ ] #14 capture: mine_transcript silently drops tool name when tool_use_id has no match
+- [ ] #15 capture: _salient_line returns bare 'exit code N' when that is the entire error text
 
 ---
 
-## v0.2.0 — Phase 2 (to be scoped)
+## v0.2.0 — Phase 2: feedback loop automation and session scope isolation
 
-Candidates from "What's Not Here Yet" in AGENTS.md — none are committed
-until the user files and milestones the corresponding issues:
+### Candidate B — SessionStart banner
 
-- [ ] Suggested config auto-application (settings.json edits, user-approved — lift invariant #3)
+- [ ] #7 Add SessionStart hook: banner when new failure clusters are detected
+
+### Hierarchical session scope
+
+- [ ] #8 Design: hierarchical session scope for failures log *(resolve design questions first)*
+- [ ] #9 capture: write to project-scoped failures log based on session CWD
+- [ ] #10 doctor: scope-aware log loading and --global flag
+
+### Parking lot (not yet filed)
+
+- [ ] Candidate A — Real-time failure flagging (PostToolUse fast-path)
+- [ ] Candidate C — Gated auto-apply of settings.json diffs (lifts P3)
 - [ ] Cross-machine sync of `failures.jsonl`
-- [ ] Richer UI beyond the `doctor` skill text report

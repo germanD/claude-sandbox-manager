@@ -26,7 +26,7 @@ except Exception:
 )"
 
 if [ -n "$transcript_path" ] && [ -f "$transcript_path" ]; then
-  python3 "$ROOT/lib/capture.py" "$transcript_path" >/dev/null 2>&1 || true
+  python3 "$ROOT/lib/capture.py" --cwd "${PWD:-}" "$transcript_path" >/dev/null 2>&1 || true
 fi
 
 exit 0
