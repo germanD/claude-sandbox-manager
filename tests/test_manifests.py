@@ -28,6 +28,18 @@ class TestManifests(unittest.TestCase):
         self.assertIn("session-end.sh", cmd)
         self.assertIn("CLAUDE_PLUGIN_ROOT", cmd)
 
+    def test_hooks_register_session_start(self):
+        h = load("hooks/hooks.json")
+        self.assertIn("SessionStart", h["hooks"])
+        cmd = h["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+        self.assertIn("session-start.sh", cmd)
+        self.assertIn("CLAUDE_PLUGIN_ROOT", cmd)
+
+    def test_session_start_hook_is_executable(self):
+        path = os.path.join(ROOT, "hooks", "session-start.sh")
+        self.assertTrue(os.path.isfile(path))
+        self.assertTrue(os.access(path, os.X_OK))
+
     def test_skill_exists(self):
         self.assertTrue(os.path.isfile(os.path.join(ROOT, "skills/doctor/SKILL.md")))
 
