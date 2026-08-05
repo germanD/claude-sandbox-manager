@@ -120,7 +120,10 @@ def _load_from_history(cwd=None):
     if cwd is None:
         pattern = os.path.join(common.PROJECTS_DIR, "*", "*.jsonl")
     else:
-        slug = os.path.normpath(os.path.abspath(cwd)).replace(os.sep, "-")
+        slug = common._slug(os.path.normpath(os.path.abspath(cwd)))
+        # PROJECTS_DIR/<slug> is Claude Code's native transcript directory —
+        # distinct from DATA_DIR/projects/<slug>/ which is this plugin's audit
+        # directory.  Same slug formula, different roots; don't confuse the two.
         pattern = os.path.join(common.PROJECTS_DIR, slug, "*.jsonl")
     for path in sorted(glob.glob(pattern)):
         try:
@@ -297,7 +300,11 @@ def main(argv):
         cwd = os.getcwd()
         _data_dir, failures_path, archive_path = common.scope_paths(cwd)
         is_global = (failures_path == common.FAILURES_PATH)
-        scope_label = "global" if is_global else f"project {cwd}"
+        if is_global:
+            scope_label = "global"
+        else:
+            display_cwd = "[redacted]" if redact.is_denied(cwd) else cwd
+            scope_label = f"project {display_cwd}"
         scan_cwd = None if is_global else cwd
 
     if args.archive:
@@ -314,7 +321,7 @@ def main(argv):
         if scan_cwd is None:
             src = f"{common.PROJECTS_DIR}/*/*.jsonl"
         else:
-            slug = os.path.normpath(os.path.abspath(scan_cwd)).replace(os.sep, "-")
+            slug = common._slug(os.path.normpath(os.path.abspath(scan_cwd)))
             src = f"{common.PROJECTS_DIR}/{slug}/*.jsonl"
     else:
         records = _load_from_log(failures_path, archive_path,
