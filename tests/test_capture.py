@@ -195,5 +195,59 @@ class TestArchive(unittest.TestCase):
         self.assertEqual(_lines(common.FAILURES_PATH), [])
 
 
+class TestScopedPersistence(unittest.TestCase):
+    """Integration tests for append_records / archive_stale with explicit path
+    kwargs — exercises the scoped (P8) code path without monkeypatching globals.
+    """
+
+    def setUp(self):
+        self._d = tempfile.mkdtemp()
+        self.fp = os.path.join(self._d, "failures.jsonl")
+        self.ap = os.path.join(self._d, "failures.archive.jsonl")
+        self.now = datetime.datetime(2026, 7, 8, tzinfo=datetime.timezone.utc)
+
+    def test_append_writes_to_scoped_path(self):
+        recs = capture.mine_transcript(
+            os.path.join(FIX, "seccomp_failure.jsonl"))
+        added = capture.append_records(recs, failures_path=self.fp,
+                                       archive_path=self.ap)
+        self.assertEqual(added, 1)
+        self.assertTrue(os.path.exists(self.fp))
+        # The specific records we wrote must not appear in the global log
+        # (global log may already have real content — compare by key, not emptiness).
+        scoped_keys = {(r.get("session_id"), r.get("tool_use_id"))
+                       for r in _lines(self.fp)}
+        global_keys = {(r.get("session_id"), r.get("tool_use_id"))
+                       for r in _lines(common.FAILURES_PATH)}
+        self.assertFalse(scoped_keys & global_keys,
+                         "scoped write leaked records into the global log")
+
+    def test_scoped_dedup_spans_both_files(self):
+        recs = capture.mine_transcript(
+            os.path.join(FIX, "seccomp_failure.jsonl"))
+        capture.append_records(recs, failures_path=self.fp, archive_path=self.ap)
+        capture.archive_stale(retention_days=0, now=self.now,
+                              failures_path=self.fp, archive_path=self.ap)
+        # Record is now in archive; re-appending must be deduped.
+        added = capture.append_records(recs, failures_path=self.fp,
+                                       archive_path=self.ap)
+        self.assertEqual(added, 0)
+        self.assertEqual(_lines(self.fp), [])
+
+    def test_scoped_archive_does_not_touch_global(self):
+        recs = [_rec("s", "old", 10, self.now)]
+        capture._rewrite_jsonl(self.fp, recs)
+        capture.archive_stale(retention_days=7, now=self.now,
+                              failures_path=self.fp, archive_path=self.ap)
+        self.assertTrue(os.path.exists(self.ap))
+        # Our specific test record must not have leaked into the global archive.
+        archived_keys = {(r.get("session_id"), r.get("tool_use_id"))
+                         for r in _lines(self.ap)}
+        global_archive_keys = {(r.get("session_id"), r.get("tool_use_id"))
+                                for r in _lines(common.ARCHIVE_PATH)}
+        self.assertFalse(archived_keys & global_archive_keys,
+                         "scoped archive leaked records into the global archive")
+
+
 if __name__ == "__main__":
     unittest.main()
