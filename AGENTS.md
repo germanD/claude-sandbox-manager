@@ -28,10 +28,14 @@ The project is **Python standard library only** — there are no third-party
 dependencies and no build step. CI runs on Python 3.9 and 3.12.
 
 ```bash
-python -m py_compile lib/*.py                  # syntax check (matches CI)
-python -m unittest discover -s tests -v        # run the test suite (matches CI)
+python3 -m py_compile lib/*.py                  # syntax check (matches CI)
+python3 -m unittest discover -s tests -v        # run the test suite (matches CI)
 ```
 
+- Use `python3` explicitly — this project is developed and tested with
+  [pyenv](https://github.com/pyenv/pyenv), where the bare `python` shim is
+  often absent. `python3` is the reliable, unambiguous entrypoint across
+  pyenv-managed environments.
 - Tests use the stdlib `unittest` runner and fixture transcripts under
   `tests/fixtures/*.jsonl`. No pytest, no network, no external tools.
 - Every non-trivial change to `lib/` should come with or update a test.

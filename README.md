@@ -102,6 +102,10 @@ results, string `toolUseResult`).
 python3 -m unittest discover -s tests -v
 ```
 
+> **pyenv users** (this project's primary dev environment): use `python3`
+> explicitly — the bare `python` shim is typically absent in pyenv setups
+> unless you've opted in globally.
+
 CI (`.github/workflows/ci.yml`) runs the suite on Python 3.9 and 3.12, plus a
 byte-compile syntax check, on every push and PR. The manifest tests also
 validate `plugin.json` / `marketplace.json` / `hooks.json`.
