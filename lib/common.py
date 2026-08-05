@@ -25,6 +25,15 @@ DEFAULT_RETENTION_DAYS = 7
 PROJECTS_DIR = os.path.expanduser("~/.claude/projects")
 
 
+def _slug(cwd_abs: str) -> str:
+    """Convert an absolute path to the slug CC uses for ~/.claude/projects/<slug>.
+
+    The leading hyphen for absolute paths (e.g. /home/user/repo → -home-user-repo)
+    is intentional — it matches exactly how Claude Code itself names those dirs.
+    """
+    return cwd_abs.replace(os.sep, "-")
+
+
 def ensure_data_dir(data_dir=None):
     target = data_dir if data_dir is not None else DATA_DIR
     os.makedirs(target, exist_ok=True)
@@ -48,7 +57,7 @@ def scope_paths(cwd=None):
         cwd_abs = os.path.normpath(os.path.abspath(os.path.expanduser(str(cwd))))
         master_dirs = {os.path.normpath(home), os.path.normpath(claude_home)}
         if cwd_abs not in master_dirs:
-            slug = cwd_abs.replace(os.sep, "-")
+            slug = _slug(cwd_abs)
             data_dir = os.path.join(DATA_DIR, "projects", slug)
             return (
                 data_dir,

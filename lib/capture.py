@@ -250,7 +250,7 @@ def _existing_keys(*paths):
 
 
 def append_records(records, failures_path=None, archive_path=None):
-    """Append new (deduped) records to the failures log. Returns count.
+    """Append new (deduped) records to the scoped failures log. Returns count.
 
     Dedup spans BOTH the active log and the audit trail (invariant: archiving a
     record must not let a later scan resurrect it into the active log).
@@ -352,6 +352,9 @@ def archive_stale(retention_days=None, now=None, failures_path=None, archive_pat
     # the active log. Order matters: if the rewrite fails, nothing is lost —
     # the records are already safe in the archive and dedup prevents doubling.
     common.ensure_data_dir(os.path.dirname(os.path.abspath(active_path)))
+    # Defensive: today both files share the same dir, but ensure the archive
+    # dir also exists in case the layout ever diverges.
+    common.ensure_data_dir(os.path.dirname(os.path.abspath(archive_path)))
     seen = _existing_keys(archive_path)
     with open(archive_path, "a", encoding="utf-8") as fh:
         for r in stale:
