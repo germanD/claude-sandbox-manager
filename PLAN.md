@@ -36,9 +36,9 @@ pipeline. No new subsystems; feature scope is fixed by Phase-1 invariants.
 
 ### Hierarchical session scope
 
-- [ ] #8 Design: hierarchical session scope for failures log *(resolve design questions first)*
-- [ ] #9 capture: write to project-scoped failures log based on session CWD
-- [ ] #10 doctor: scope-aware log loading and --global flag
+- [x] #8 Design: hierarchical session scope for failures log *(resolve design questions first)*
+- [x] #9 capture: write to project-scoped failures log based on session CWD
+- [x] #10 doctor: scope-aware log loading and --global flag
 
 ### Parking lot (not yet filed)
 
