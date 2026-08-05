@@ -40,6 +40,10 @@ pipeline. No new subsystems; feature scope is fixed by Phase-1 invariants.
 - [x] #9 capture: write to project-scoped failures log based on session CWD
 - [x] #10 doctor: scope-aware log loading and --global flag
 
+### Doctor UX improvements
+
+- [ ] #18 doctor: acknowledge/dismiss a failure cluster as acted-upon
+
 ### Parking lot (not yet filed)
 
 - [ ] Candidate A — Real-time failure flagging (PostToolUse fast-path)
