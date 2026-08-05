@@ -32,7 +32,7 @@ pipeline. No new subsystems; feature scope is fixed by Phase-1 invariants.
 
 ### Candidate B — SessionStart banner
 
-- [ ] #7 Add SessionStart hook: banner when new failure clusters are detected
+- [x] #7 Add SessionStart hook: banner when new failure clusters are detected
 
 ### Hierarchical session scope
 
