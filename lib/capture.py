@@ -130,7 +130,7 @@ def _salient_line(error_text):
         if re.fullmatch(r"exit code \d+", line.lower()):
             continue
         return line
-    return error_text.strip()
+    return "(no error detail)"
 
 
 def _canon(text):
@@ -185,7 +185,7 @@ def mine_transcript(path):
                     tool_uses[tid] = (tool, _input_summary(tool, block.get("input")))
             elif btype == "tool_result" and block.get("is_error") is True:
                 tid = block.get("tool_use_id", "")
-                tool, command = tool_uses.get(tid, ("", ""))
+                tool, command = tool_uses.get(tid, ("(unknown)", ""))
                 error_text = _block_text(block.get("content"))
 
                 if is_noise(error_text):
