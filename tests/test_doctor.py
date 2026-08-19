@@ -165,5 +165,152 @@ class TestBanner(unittest.TestCase):
         self.assertIn("2 cluster(s)", out)
 
 
+
+class TestDoctorMain(unittest.TestCase):
+    """Integration tests for doctor.main() CLI argument paths."""
+
+    def setUp(self):
+        self._d = tempfile.mkdtemp()
+        self.fp = os.path.join(self._d, "failures.jsonl")
+        self.ap = os.path.join(self._d, "failures.archive.jsonl")
+        self.lrp = os.path.join(self._d, "last_reported.json")
+
+        self._orig_fp = common.FAILURES_PATH
+        self._orig_ap = common.ARCHIVE_PATH
+        self._orig_lrp = common.LAST_REPORTED_PATH
+        self._orig_dd = common.DATA_DIR
+
+        common.FAILURES_PATH = self.fp
+        common.ARCHIVE_PATH = self.ap
+        common.LAST_REPORTED_PATH = self.lrp
+        common.DATA_DIR = self._d
+
+    def tearDown(self):
+        common.FAILURES_PATH = self._orig_fp
+        common.ARCHIVE_PATH = self._orig_ap
+        common.LAST_REPORTED_PATH = self._orig_lrp
+        common.DATA_DIR = self._orig_dd
+
+    def _run(self, argv):
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = doctor.main(argv)
+        return rc, buf.getvalue()
+
+    def _write_log(self, records, path=None):
+        target = path if path is not None else self.fp
+        with open(target, "w", encoding="utf-8") as fh:
+            for r in records:
+                fh.write(json.dumps(r) + "\n")
+
+    # ------------------------------------------------------------------
+    # Test 1: --banner delegates and returns 0
+    # ------------------------------------------------------------------
+    def test_banner_returns_0(self):
+        self._write_log([rec(ts="2026-08-04T10:00:00.000Z")])
+        rc, out = self._run(["--banner"])
+        self.assertEqual(rc, 0)
+        self.assertIn("sandbox-audit", out)
+
+    # ------------------------------------------------------------------
+    # Test 2: no-log message when failures file is absent (using --global)
+    # ------------------------------------------------------------------
+    def test_no_log_message_when_file_absent(self):
+        # fp is already a non-existent path (setUp did not create it)
+        self.assertFalse(os.path.exists(self.fp))
+        rc, out = self._run(["--global"])
+        self.assertEqual(rc, 0)
+        self.assertIn("no log", out)
+
+    # ------------------------------------------------------------------
+    # Test 3: report from log (--global)
+    # ------------------------------------------------------------------
+    def test_report_from_log(self):
+        self._write_log([
+            rec(signature="sig-A", session_id="s1"),
+            rec(signature="sig-A", session_id="s2"),
+        ])
+        rc, out = self._run(["--global"])
+        self.assertEqual(rc, 0)
+        self.assertIn("2 failure(s)", out)
+        self.assertIn("1 cluster(s)", out)
+
+    # ------------------------------------------------------------------
+    # Test 4: --top limits output and shows "hidden" message
+    # ------------------------------------------------------------------
+    def test_top_limits_output(self):
+        self._write_log([
+            rec(signature="sig-X", session_id="s1"),
+            rec(signature="sig-Y", session_id="s2"),
+            rec(signature="sig-Z", session_id="s3"),
+        ])
+        rc, out = self._run(["--global", "--top", "1"])
+        self.assertEqual(rc, 0)
+        self.assertIn("hidden", out)
+
+    # ------------------------------------------------------------------
+    # Test 5: --verbose prints "Sources reviewed"
+    # ------------------------------------------------------------------
+    def test_verbose_prints_sources(self):
+        self._write_log([rec(signature="sig-V", session_id="s1")])
+        rc, out = self._run(["--global", "--verbose"])
+        self.assertEqual(rc, 0)
+        self.assertIn("Sources reviewed", out)
+
+    # ------------------------------------------------------------------
+    # Test 6: --include-archive reads both active log and archive
+    # ------------------------------------------------------------------
+    def test_include_archive_reads_both_files(self):
+        self._write_log([rec(signature="sig-active", session_id="s1", tool_use_id="t1")])
+        self._write_log(
+            [rec(signature="sig-archive", session_id="s2", tool_use_id="t2")],
+            path=self.ap,
+        )
+        rc, out = self._run(["--global", "--include-archive"])
+        self.assertEqual(rc, 0)
+        # 2 records total across 2 distinct clusters
+        self.assertIn("2 failure(s)", out)
+
+    # ------------------------------------------------------------------
+    # Test 7: --archive flag moves stale records and returns 0
+    # ------------------------------------------------------------------
+    def test_archive_flag_moves_stale_records(self):
+        # Write a record with a timestamp 10 days in the past
+        stale_ts = "2020-01-01T00:00:00Z"  # permanently ancient; always outside any retention window
+        self._write_log([rec(ts=stale_ts, signature="sig-stale", session_id="s1")])
+        rc, out = self._run(["--global", "--archive", "--retention-days", "7"])
+        self.assertEqual(rc, 0)
+        self.assertIn("archived 1", out)
+        # Archive file must exist and contain the moved record
+        self.assertTrue(os.path.exists(self.ap))
+        with open(self.ap, encoding="utf-8") as fh:
+            lines = [ln for ln in fh if ln.strip()]
+        self.assertEqual(len(lines), 1)
+
+    # ------------------------------------------------------------------
+    # Test 8: --scan-history with a real fixture
+    # ------------------------------------------------------------------
+    def test_scan_history_with_fixture(self):
+        import shutil
+        projects_dir = os.path.join(self._d, "claude-projects")
+        slug_dir = os.path.join(projects_dir, "fake-proj")
+        os.makedirs(slug_dir, exist_ok=True)
+
+        fixture_src = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "fixtures", "seccomp_failure.jsonl",
+        )
+        shutil.copy(fixture_src, os.path.join(slug_dir, "session-abc.jsonl"))
+
+        orig_pd = common.PROJECTS_DIR
+        common.PROJECTS_DIR = projects_dir
+        try:
+            rc, out = self._run(["--global", "--scan-history"])
+        finally:
+            common.PROJECTS_DIR = orig_pd
+
+        self.assertEqual(rc, 0)
+        self.assertIn("failure(s)", out)
+
 if __name__ == "__main__":
     unittest.main()
