@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -128,19 +129,26 @@ class TestMine(unittest.TestCase):
 
 
 class TestPersistenceDedup(unittest.TestCase):
+    def setUp(self):
+        self._orig = (common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH,
+                      common.LAST_REPORTED_PATH)
+        self._d = tempfile.mkdtemp()
+        common.DATA_DIR = self._d
+        common.FAILURES_PATH = os.path.join(self._d, "failures.jsonl")
+        common.ARCHIVE_PATH = os.path.join(self._d, "failures.archive.jsonl")
+        common.LAST_REPORTED_PATH = os.path.join(self._d, "last_reported.json")
+
+    def tearDown(self):
+        common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH, \
+            common.LAST_REPORTED_PATH = self._orig
+        shutil.rmtree(self._d, ignore_errors=True)
+
     def test_append_is_idempotent(self):
         recs = mine("seccomp_failure")
-        with tempfile.TemporaryDirectory() as d:
-            orig_dir, orig_path = common.DATA_DIR, common.FAILURES_PATH
-            try:
-                common.DATA_DIR = d
-                common.FAILURES_PATH = os.path.join(d, "failures.jsonl")
-                self.assertEqual(capture.append_records(recs), 1)
-                self.assertEqual(capture.append_records(recs), 0)  # dedup
-                with open(common.FAILURES_PATH) as fh:
-                    self.assertEqual(sum(1 for _ in fh), 1)
-            finally:
-                common.DATA_DIR, common.FAILURES_PATH = orig_dir, orig_path
+        self.assertEqual(capture.append_records(recs), 1)
+        self.assertEqual(capture.append_records(recs), 0)  # dedup
+        with open(common.FAILURES_PATH) as fh:
+            self.assertEqual(sum(1 for _ in fh), 1)
 
 
 def _rec(session, tid, days_ago, now):
@@ -257,6 +265,76 @@ class TestScopedPersistence(unittest.TestCase):
         self.assertFalse(archived_keys & global_archive_keys,
                          "scoped archive leaked records into the global archive")
 
+
+
+
+class TestCaptureMain(unittest.TestCase):
+    # Tests for capture.main() entry point.
+
+    def setUp(self):
+        self._orig = (common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH,
+                      common.LAST_REPORTED_PATH)
+        self._d = tempfile.mkdtemp()
+        common.DATA_DIR = self._d
+        common.FAILURES_PATH = os.path.join(self._d, "failures.jsonl")
+        common.ARCHIVE_PATH = os.path.join(self._d, "failures.archive.jsonl")
+        common.LAST_REPORTED_PATH = os.path.join(self._d, "last_reported.json")
+
+    def tearDown(self):
+        common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH, \
+            common.LAST_REPORTED_PATH = self._orig
+        shutil.rmtree(self._d, ignore_errors=True)
+
+    def test_no_paths_returns_2(self):
+        self.assertEqual(capture.main([]), 2)
+
+    def test_basic_run_returns_0_and_writes_record(self):
+        # The fixture transcript is old, so archive_stale (called by main) may
+        # move the record to the archive.  Count across both files.
+        fixture = os.path.join(FIX, "seccomp_failure.jsonl")
+        rc = capture.main([fixture])
+        self.assertEqual(rc, 0)
+        active = _lines(common.FAILURES_PATH)
+        archive = _lines(common.ARCHIVE_PATH)
+        total = len(active) + len(archive)
+        self.assertEqual(total, 1,
+                         "expected exactly 1 record across active+archive")
+
+    def test_nonexistent_path_returns_0_zero_records(self):
+        # Non-existent paths are silently skipped; no records are written.
+        # append_records may still create an empty file when called with 0
+        # records (opens in append mode), so we check the line count, not
+        # file existence.
+        rc = capture.main(["nonexistent_path.jsonl"])
+        self.assertEqual(rc, 0)
+        self.assertEqual(_lines(common.FAILURES_PATH), [])
+
+    def test_cwd_routes_to_scoped_path(self):
+        fixture = os.path.join(FIX, "seccomp_failure.jsonl")
+        project_dir = tempfile.mkdtemp()
+        try:
+            rc = capture.main(["--cwd", project_dir, fixture])
+            self.assertEqual(rc, 0)
+            _data_dir, expected_fp, _expected_ap = common.scope_paths(project_dir)
+            self.assertTrue(os.path.exists(expected_fp))
+            self.assertFalse(os.path.exists(common.FAILURES_PATH))
+        finally:
+            # project_dir is only the cwd hint; the scoped log lives under DATA_DIR (self._d)
+            shutil.rmtree(project_dir, ignore_errors=True)
+
+    def test_archive_swallow_does_not_break_return_code(self):
+        fixture = os.path.join(FIX, "seccomp_failure.jsonl")
+        original = capture.archive_stale
+
+        def _raise(**kw):
+            raise RuntimeError("simulated archive failure")
+
+        try:
+            capture.archive_stale = _raise
+            rc = capture.main([fixture])
+            self.assertEqual(rc, 0)
+        finally:
+            capture.archive_stale = original
 
 if __name__ == "__main__":
     unittest.main()
