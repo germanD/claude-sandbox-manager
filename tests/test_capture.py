@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import shutil
 import sys
 import tempfile
 import unittest
@@ -120,14 +121,18 @@ class TestMine(unittest.TestCase):
 
 class TestPersistenceDedup(unittest.TestCase):
     def setUp(self):
-        self._orig = (common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH)
+        self._orig = (common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH,
+                      common.LAST_REPORTED_PATH)
         self._d = tempfile.mkdtemp()
         common.DATA_DIR = self._d
         common.FAILURES_PATH = os.path.join(self._d, "failures.jsonl")
         common.ARCHIVE_PATH = os.path.join(self._d, "failures.archive.jsonl")
+        common.LAST_REPORTED_PATH = os.path.join(self._d, "last_reported.json")
 
     def tearDown(self):
-        common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH = self._orig
+        common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH, \
+            common.LAST_REPORTED_PATH = self._orig
+        shutil.rmtree(self._d, ignore_errors=True)
 
     def test_append_is_idempotent(self):
         recs = mine("seccomp_failure")
@@ -258,14 +263,18 @@ class TestCaptureMain(unittest.TestCase):
     # Tests for capture.main() entry point.
 
     def setUp(self):
-        self._orig = (common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH)
+        self._orig = (common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH,
+                      common.LAST_REPORTED_PATH)
         self._d = tempfile.mkdtemp()
         common.DATA_DIR = self._d
         common.FAILURES_PATH = os.path.join(self._d, "failures.jsonl")
         common.ARCHIVE_PATH = os.path.join(self._d, "failures.archive.jsonl")
+        common.LAST_REPORTED_PATH = os.path.join(self._d, "last_reported.json")
 
     def tearDown(self):
-        common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH = self._orig
+        common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH, \
+            common.LAST_REPORTED_PATH = self._orig
+        shutil.rmtree(self._d, ignore_errors=True)
 
     def test_no_paths_returns_2(self):
         self.assertEqual(capture.main([]), 2)
@@ -292,7 +301,6 @@ class TestCaptureMain(unittest.TestCase):
         self.assertEqual(_lines(common.FAILURES_PATH), [])
 
     def test_cwd_routes_to_scoped_path(self):
-        import shutil
         fixture = os.path.join(FIX, "seccomp_failure.jsonl")
         project_dir = tempfile.mkdtemp()
         try:
@@ -302,6 +310,7 @@ class TestCaptureMain(unittest.TestCase):
             self.assertTrue(os.path.exists(expected_fp))
             self.assertFalse(os.path.exists(common.FAILURES_PATH))
         finally:
+            # project_dir is only the cwd hint; the scoped log lives under DATA_DIR (self._d)
             shutil.rmtree(project_dir, ignore_errors=True)
 
     def test_archive_swallow_does_not_break_return_code(self):
