@@ -71,6 +71,12 @@ class TestSignature(unittest.TestCase):
     def test_salient_line_fallback_when_only_exit_code(self):
         self.assertEqual(capture._salient_line("Exit code 127"), "(no error detail)")
 
+    def test_signature_for_exit_code_only_error(self):
+        self.assertEqual(
+            capture.signature("runtime_failure", "Bash", "", "Exit code 127"),
+            "Bash:(no error detail)",
+        )
+
 
 class TestMine(unittest.TestCase):
     def test_seccomp(self):
