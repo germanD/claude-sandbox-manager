@@ -201,15 +201,16 @@ class TestDoctorMain(unittest.TestCase):
         target = path if path is not None else self.fp
         with open(target, "w", encoding="utf-8") as fh:
             for r in records:
-                fh.write(json.dumps(r) + chr(10))
+                fh.write(json.dumps(r) + "\n")
 
     # ------------------------------------------------------------------
     # Test 1: --banner delegates and returns 0
     # ------------------------------------------------------------------
     def test_banner_returns_0(self):
         self._write_log([rec(ts="2026-08-04T10:00:00.000Z")])
-        rc, _ = self._run(["--banner"])
+        rc, out = self._run(["--banner"])
         self.assertEqual(rc, 0)
+        self.assertIn("sandbox-audit", out)
 
     # ------------------------------------------------------------------
     # Test 2: no-log message when failures file is absent (using --global)
@@ -275,7 +276,7 @@ class TestDoctorMain(unittest.TestCase):
     # ------------------------------------------------------------------
     def test_archive_flag_moves_stale_records(self):
         # Write a record with a timestamp 10 days in the past
-        stale_ts = "2026-07-31T00:00:00Z"  # 10 days before 2026-08-10
+        stale_ts = "2020-01-01T00:00:00Z"  # permanently ancient; always outside any retention window
         self._write_log([rec(ts=stale_ts, signature="sig-stale", session_id="s1")])
         rc, out = self._run(["--global", "--archive", "--retention-days", "7"])
         self.assertEqual(rc, 0)
