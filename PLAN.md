@@ -25,6 +25,9 @@ pipeline. No new subsystems; feature scope is fixed by Phase-1 invariants.
 - [x] #13 test: capture.main() entry point and archive-swallow path have no test
 - [x] #14 capture: mine_transcript silently drops tool name when tool_use_id has no match
 - [x] #15 capture: _salient_line returns bare 'exit code N' when that is the entire error text
+- [ ] #22 tests: add fixture for orphaned tool_use_id path in capture
+- [ ] #23 tests: add P5 end-to-end test through capture.main() CLI
+- [ ] #24 capture: document signature format change as a known cluster-migration effect
 
 ---
 
