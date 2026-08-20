@@ -20,11 +20,11 @@ pipeline. No new subsystems; feature scope is fixed by Phase-1 invariants.
 
 ### Open
 
-- [ ] #11 test: TestPersistenceDedup does not isolate common.ARCHIVE_PATH
-- [ ] #12 test: no integration tests for doctor.main() CLI argument paths
-- [ ] #13 test: capture.main() entry point and archive-swallow path have no test
-- [ ] #14 capture: mine_transcript silently drops tool name when tool_use_id has no match
-- [ ] #15 capture: _salient_line returns bare 'exit code N' when that is the entire error text
+- [x] #11 test: TestPersistenceDedup does not isolate common.ARCHIVE_PATH
+- [x] #12 test: no integration tests for doctor.main() CLI argument paths
+- [x] #13 test: capture.main() entry point and archive-swallow path have no test
+- [x] #14 capture: mine_transcript silently drops tool name when tool_use_id has no match
+- [x] #15 capture: _salient_line returns bare 'exit code N' when that is the entire error text
 
 ---
 
