@@ -128,6 +128,20 @@ class TestMine(unittest.TestCase):
         self.assertEqual(recs[0]["kind"], "runtime_failure")
 
 
+    def test_orphaned_tool_use_id_fallback(self):
+        # A tool_result whose tool_use_id has no matching tool_use block should
+        # produce a record with tool == "(unknown)" and a signature starting
+        # with "(unknown):", not crash or silently drop the failure.
+        recs = mine("orphaned_tool_use_id")
+        self.assertEqual(len(recs), 1, "orphaned tool_use_id must yield exactly one record")
+        r = recs[0]
+        self.assertEqual(r["tool"], "(unknown)")
+        self.assertTrue(
+            r["signature"].startswith("(unknown):"),
+            "expected signature starts with (unknown):, got " + r["signature"],
+        )
+
+
 class TestPersistenceDedup(unittest.TestCase):
     def setUp(self):
         self._orig = (common.DATA_DIR, common.FAILURES_PATH, common.ARCHIVE_PATH,

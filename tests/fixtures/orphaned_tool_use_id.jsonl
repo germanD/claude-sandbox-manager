@@ -1,0 +1,1 @@
+{"type":"user","sessionId":"s-orphan","cwd":"/home/u/proj","timestamp":"2026-06-10T09:00:00.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu-orphan","is_error":true,"content":"Exit code 1\nNo such file or directory"}]}}
