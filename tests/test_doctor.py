@@ -91,6 +91,36 @@ class TestSources(unittest.TestCase):
         self.assertIn("abc.jsonl", out)
 
 
+class TestDetectSignatureSplit(unittest.TestCase):
+    def test_no_split_returns_false(self):
+        recs = [rec(signature="Bash:(no error detail)"), rec(signature="Bash:(no error detail)")]
+        self.assertFalse(doctor._detect_signature_split(recs))
+
+    def test_old_and_new_exit_code_format_returns_true(self):
+        recs = [
+            rec(tool="Bash", kind="runtime_failure", signature="Bash:Exit code 1"),
+            rec(tool="Bash", kind="runtime_failure", signature="Bash:(no error detail)"),
+        ]
+        self.assertTrue(doctor._detect_signature_split(recs))
+
+    def test_old_and_new_unknown_prefix_returns_true(self):
+        recs = [
+            rec(tool="Bash", kind="runtime_failure", signature=":some error"),
+            rec(tool="Bash", kind="runtime_failure", signature="(unknown):some error"),
+        ]
+        self.assertTrue(doctor._detect_signature_split(recs))
+
+    def test_different_tools_do_not_cross_trigger(self):
+        recs = [
+            rec(tool="Bash", kind="runtime_failure", signature="Bash:Exit code 1"),
+            rec(tool="Edit", kind="runtime_failure", signature="Edit:(no error detail)"),
+        ]
+        self.assertFalse(doctor._detect_signature_split(recs))
+
+    def test_empty_records_returns_false(self):
+        self.assertFalse(doctor._detect_signature_split([]))
+
+
 class TestBanner(unittest.TestCase):
     def setUp(self):
         self._d = tempfile.mkdtemp()
@@ -288,7 +318,31 @@ class TestDoctorMain(unittest.TestCase):
         self.assertEqual(len(lines), 1)
 
     # ------------------------------------------------------------------
-    # Test 8: --scan-history with a real fixture
+    # Test 8: advisory note appears when old/new signature formats coexist
+    # ------------------------------------------------------------------
+    def test_signature_split_advisory_is_printed(self):
+        self._write_log([
+            rec(tool="Bash", kind="runtime_failure",
+                signature="Bash:Exit code 1", session_id="s1", tool_use_id="t1"),
+            rec(tool="Bash", kind="runtime_failure",
+                signature="Bash:(no error detail)", session_id="s2", tool_use_id="t2"),
+        ])
+        rc, out = self._run(["--global"])
+        self.assertEqual(rc, 0)
+        self.assertIn("signature format upgrade", out)
+        self.assertIn("PR #19", out)
+
+    def test_no_advisory_when_no_split(self):
+        self._write_log([
+            rec(tool="Bash", kind="runtime_failure",
+                signature="Bash:(no error detail)", session_id="s1", tool_use_id="t1"),
+        ])
+        rc, out = self._run(["--global"])
+        self.assertEqual(rc, 0)
+        self.assertNotIn("signature format upgrade", out)
+
+    # ------------------------------------------------------------------
+    # Test 9: --scan-history with a real fixture
     # ------------------------------------------------------------------
     def test_scan_history_with_fixture(self):
         import shutil
