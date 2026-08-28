@@ -171,6 +171,31 @@ def print_sources(scanned):
     print()
 
 
+def _detect_signature_split(records):
+    """Return True if records show signs of a PR #19 signature-format split.
+
+    Two patterns indicate old and new signatures coexist for the same
+    tool/kind pair:
+      - old bare-exit-code fallback  ":Exit code N"  vs  "(no error detail)"
+      - old empty-tool orphan prefix ":"              vs  "(unknown):"
+    """
+    by_kind_tool = {}
+    for r in records:
+        key = (r.get("kind", ""), r.get("tool", ""))
+        by_kind_tool.setdefault(key, set()).add(r.get("signature", ""))
+
+    for sigs in by_kind_tool.values():
+        has_old_exit = any(":Exit code " in s for s in sigs)
+        has_new_exit = any("(no error detail)" in s for s in sigs)
+        if has_old_exit and has_new_exit:
+            return True
+        has_old_unknown = any(s.startswith(":") for s in sigs)
+        has_new_unknown = any("(unknown):" in s for s in sigs)
+        if has_old_unknown and has_new_unknown:
+            return True
+    return False
+
+
 def cluster(records):
     clusters = {}
     for r in records:
@@ -337,6 +362,11 @@ def main(argv):
     print(f"(scope: {scope_label} | source: {src})\n")
     if args.verbose:
         print_sources(scanned)
+    if _detect_signature_split(records):
+        print(
+            "Note: some clusters may appear split due to a signature format upgrade "
+            "(PR #19). They will merge as old records age out (~7 days).\n"
+        )
     report(cluster(records), args.top)
     return 0
 

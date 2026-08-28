@@ -83,6 +83,33 @@ python3 lib/doctor.py
 
 ---
 
+## Known upgrade effects
+
+### Signature format change (PR #19 → v0.1.x)
+
+PR #19 changed two signature-building behaviours in `lib/capture.py`:
+
+1. **Bare-exit-code fallback** — errors whose text is only `"Exit code N"` now
+   produce `"(no error detail)"` instead of `"Exit code N"` in the signature.
+2. **Orphaned `tool_use_id` prefix** — tool_result blocks with no matching
+   tool_use block used to produce an empty tool prefix (`":…"`); they now produce
+   `"(unknown):…"`.
+
+Pre-existing records in `failures.jsonl` carry the old signatures. Because
+`doctor` clusters by exact signature, the same failure pattern will appear as
+**two separate clusters** — one per format — until the old records age out
+(default: 7 days). When this is detected, `doctor` prints a one-time advisory:
+
+> Note: some clusters may appear split due to a signature format upgrade (PR
+> #19). They will merge as old records age out (~7 days).
+
+No manual intervention is needed. If you want to clear the split immediately,
+run `python3 lib/doctor.py --archive --retention-days 0` to move all records to
+the archive, then re-run the hook or `--scan-history` to repopulate with fresh
+signatures.
+
+---
+
 ## Validation targets (achieved by Phase-1)
 
 The tool was considered "working" when, run against the machine's history, it
