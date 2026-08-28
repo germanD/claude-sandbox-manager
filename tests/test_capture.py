@@ -351,5 +351,30 @@ class TestCaptureMain(unittest.TestCase):
         finally:
             capture.archive_stale = original
 
+    def test_p5_dedup_via_main_spans_active_and_archive(self):
+        """P5: a second main() call with the same fixture must add 0 records
+        across both the active log AND the archive.
+
+        This exercises the full main() -> scope_paths() -> append_records()
+        wiring so that a regression in how main() resolves or passes paths
+        would be caught here, not just by the lower-level unit tests.
+        """
+        fixture = os.path.join(FIX, "seccomp_failure.jsonl")
+
+        # First run: the record must land somewhere (active log or archive,
+        # depending on age-out); either is fine -- we only assert the total is 1.
+        rc1 = capture.main([fixture])
+        self.assertEqual(rc1, 0)
+        after_first = len(_lines(common.FAILURES_PATH)) + len(_lines(common.ARCHIVE_PATH))
+        self.assertEqual(after_first, 1, "expected exactly 1 record after first run")
+
+        # Second run with the identical fixture -- P5 dedup must prevent any
+        # addition to either the active log or the archive.
+        rc2 = capture.main([fixture])
+        self.assertEqual(rc2, 0)
+        after_second = len(_lines(common.FAILURES_PATH)) + len(_lines(common.ARCHIVE_PATH))
+        self.assertEqual(after_second, after_first,
+                         "second main() run added records to active log or archive (P5 violated)")
+
 if __name__ == "__main__":
     unittest.main()
