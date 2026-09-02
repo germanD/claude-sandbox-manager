@@ -136,6 +136,7 @@ class TestMine(unittest.TestCase):
         self.assertEqual(len(recs), 1, "orphaned tool_use_id must yield exactly one record")
         r = recs[0]
         self.assertEqual(r["tool"], "(unknown)")
+        self.assertEqual(r["kind"], "runtime_failure")
         self.assertTrue(
             r["signature"].startswith("(unknown):"),
             "expected signature starts with (unknown):, got " + r["signature"],
