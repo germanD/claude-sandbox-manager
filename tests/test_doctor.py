@@ -104,9 +104,12 @@ class TestDetectSignatureSplit(unittest.TestCase):
         self.assertTrue(doctor._detect_signature_split(recs))
 
     def test_old_and_new_unknown_prefix_returns_true(self):
+        # Old orphaned records have tool="" (pre-#19 fallback was ("", "")).
+        # New orphaned records have tool="(unknown)". They are in different
+        # (kind, tool) groups, so the orphan check must group by kind only.
         recs = [
-            rec(tool="Bash", kind="runtime_failure", signature=":some error"),
-            rec(tool="Bash", kind="runtime_failure", signature="(unknown):some error"),
+            rec(tool="", kind="runtime_failure", signature=":some error"),
+            rec(tool="(unknown)", kind="runtime_failure", signature="(unknown):some error"),
         ]
         self.assertTrue(doctor._detect_signature_split(recs))
 

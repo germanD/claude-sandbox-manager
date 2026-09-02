@@ -174,11 +174,13 @@ def print_sources(scanned):
 def _detect_signature_split(records):
     """Return True if records show signs of a PR #19 signature-format split.
 
-    Two patterns indicate old and new signatures coexist for the same
-    tool/kind pair:
-      - old bare-exit-code fallback  ":Exit code N"  vs  "(no error detail)"
-      - old empty-tool orphan prefix ":"              vs  "(unknown):"
+    Two patterns indicate old and new signatures coexist:
+      - Bare-exit-code fallback: ":Exit code N" vs "(no error detail)".
+        The tool field is unchanged, so group by (kind, tool).
+      - Orphaned tool_use_id prefix: tool="" vs tool="(unknown)".
+        The tool field itself changed, so group by kind only.
     """
+    # Exit-code split: tool didn't change between old/new format.
     by_kind_tool = {}
     for r in records:
         key = (r.get("kind", ""), r.get("tool", ""))
@@ -189,10 +191,17 @@ def _detect_signature_split(records):
         has_new_exit = any("(no error detail)" in s for s in sigs)
         if has_old_exit and has_new_exit:
             return True
-        has_old_unknown = any(s.startswith(":") for s in sigs)
-        has_new_unknown = any("(unknown):" in s for s in sigs)
-        if has_old_unknown and has_new_unknown:
+
+    # Orphan-ID split: tool itself changed ("" → "(unknown)"), so group by
+    # kind only — the two formats never share the same (kind, tool) bucket.
+    by_kind = {}
+    for r in records:
+        by_kind.setdefault(r.get("kind", ""), set()).add(r.get("tool", ""))
+
+    for tools in by_kind.values():
+        if "" in tools and "(unknown)" in tools:
             return True
+
     return False
 
 
