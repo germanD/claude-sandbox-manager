@@ -25,9 +25,16 @@ pipeline. No new subsystems; feature scope is fixed by Phase-1 invariants.
 - [x] #13 test: capture.main() entry point and archive-swallow path have no test
 - [x] #14 capture: mine_transcript silently drops tool name when tool_use_id has no match
 - [x] #15 capture: _salient_line returns bare 'exit code N' when that is the entire error text
-- [ ] #22 tests: add fixture for orphaned tool_use_id path in capture
-- [ ] #23 tests: add P5 end-to-end test through capture.main() CLI
-- [ ] #24 capture: document signature format change as a known cluster-migration effect
+- [x] #22 tests: add fixture for orphaned tool_use_id path in capture
+- [x] #23 tests: add P5 end-to-end test through capture.main() CLI
+- [x] #24 capture: document signature format change as a known cluster-migration effect
+
+### Backlog (no milestone)
+
+- [ ] #28 test: assert session_id in test_orphaned_tool_use_id_fallback
+- [ ] #29 test: assert snippet in test_orphaned_tool_use_id_fallback
+- [ ] #30 test: test_p5_dedup_via_main fragile if scope_paths gains a non-None default cwd
+- [ ] #31 doctor: _detect_signature_split may produce false-positive advisory on blank-tool records
 
 ---
 
