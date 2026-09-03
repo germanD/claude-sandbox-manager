@@ -17,9 +17,6 @@ pipeline. No new subsystems; feature scope is fixed by Phase-1 invariants.
 - [x] #2 Add sandbox-audit plugin (Phase-1 MVP)
 - [x] #3 Add AGENTS.md agent guidance + thin CLAUDE.md pointer
 - [x] #4 Add age-based archiving: roll stale failures to audit trail (v0.1.3)
-
-### Open
-
 - [x] #11 test: TestPersistenceDedup does not isolate common.ARCHIVE_PATH
 - [x] #12 test: no integration tests for doctor.main() CLI argument paths
 - [x] #13 test: capture.main() entry point and archive-swallow path have no test
