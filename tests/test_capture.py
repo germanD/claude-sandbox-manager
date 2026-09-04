@@ -141,6 +141,11 @@ class TestMine(unittest.TestCase):
             r["signature"].startswith("(unknown):"),
             "expected signature starts with (unknown):, got " + r["signature"],
         )
+        # #28: session_id must be extracted from the outer record's sessionId field
+        self.assertEqual(r["session_id"], "s-orphan")
+        # #29: snippet must contain the salient error line from the fixture's
+        # tool_result content ("Exit code 1\nNo such file or directory")
+        self.assertIn("No such file or directory", r["snippet"])
 
 
 class TestPersistenceDedup(unittest.TestCase):
