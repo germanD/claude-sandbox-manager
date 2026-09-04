@@ -368,6 +368,9 @@ class TestCaptureMain(unittest.TestCase):
 
         # First run: the record must land somewhere (active log or archive,
         # depending on age-out); either is fine -- we only assert the total is 1.
+        # NOTE: calling capture.main([fixture]) without --cwd relies on
+        # scope_paths(None) returning the monkeypatched module-level globals; if
+        # scope_paths() ever gains a non-None default cwd this test will break.
         rc1 = capture.main([fixture])
         self.assertEqual(rc1, 0)
         after_first = len(_lines(common.FAILURES_PATH)) + len(_lines(common.ARCHIVE_PATH))
