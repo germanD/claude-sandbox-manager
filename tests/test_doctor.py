@@ -107,11 +107,24 @@ class TestDetectSignatureSplit(unittest.TestCase):
         # Old orphaned records have tool="" (pre-#19 fallback was ("", "")).
         # New orphaned records have tool="(unknown)". They are in different
         # (kind, tool) groups, so the orphan check must group by kind only.
+        # The old-format signature starts with ":" (orphaned-ID prefix) which
+        # is required by the narrowed check introduced in issue #31.
         recs = [
             rec(tool="", kind="runtime_failure", signature=":some error"),
             rec(tool="(unknown)", kind="runtime_failure", signature="(unknown):some error"),
         ]
         self.assertTrue(doctor._detect_signature_split(recs))
+
+    def test_blank_tool_name_without_colon_prefix_does_not_trigger(self):
+        # A tool="" record whose signature does NOT start with ":" (e.g. a
+        # tool_use block that simply had no "name" field) must not be mistaken
+        # for the pre-#19 orphaned-ID format even when tool="(unknown)" records
+        # coexist in the same kind group.
+        recs = [
+            rec(tool="", kind="runtime_failure", signature="some error without colon prefix"),
+            rec(tool="(unknown)", kind="runtime_failure", signature="(unknown):some error"),
+        ]
+        self.assertFalse(doctor._detect_signature_split(recs))
 
     def test_different_tools_do_not_cross_trigger(self):
         recs = [

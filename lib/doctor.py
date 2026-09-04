@@ -194,12 +194,22 @@ def _detect_signature_split(records):
 
     # Orphan-ID split: tool itself changed ("" → "(unknown)"), so group by
     # kind only — the two formats never share the same (kind, tool) bucket.
+    # To avoid false positives we require that the tool="" records carry at
+    # least one signature starting with ":" (the old orphaned-ID prefix); a
+    # bare tool="" from any other missing-name tool_use block would not have
+    # that prefix, so we only return True when both conditions hold:
+    #   - a record with tool="" and signature starting with ":"  (old format)
+    #   - a record with tool="(unknown)"                         (new format)
     by_kind = {}
     for r in records:
-        by_kind.setdefault(r.get("kind", ""), set()).add(r.get("tool", ""))
+        kind = r.get("kind", "")
+        by_kind.setdefault(kind, []).append((r.get("tool", ""), r.get("signature", "")))
 
-    for tools in by_kind.values():
-        if "" in tools and "(unknown)" in tools:
+    for pairs in by_kind.values():
+        has_old_orphan = any(tool == "" and sig.startswith(":")
+                             for tool, sig in pairs)
+        has_new_unknown = any(tool == "(unknown)" for tool, sig in pairs)
+        if has_old_orphan and has_new_unknown:
             return True
 
     return False
