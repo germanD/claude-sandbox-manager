@@ -28,10 +28,11 @@ pipeline. No new subsystems; feature scope is fixed by Phase-1 invariants.
 
 ### Backlog (no milestone)
 
-- [ ] #28 test: assert session_id in test_orphaned_tool_use_id_fallback
-- [ ] #29 test: assert snippet in test_orphaned_tool_use_id_fallback
-- [ ] #30 test: test_p5_dedup_via_main fragile if scope_paths gains a non-None default cwd
-- [ ] #31 doctor: _detect_signature_split may produce false-positive advisory on blank-tool records
+- [x] #28 test: assert session_id in test_orphaned_tool_use_id_fallback
+- [x] #29 test: assert snippet in test_orphaned_tool_use_id_fallback
+- [x] #30 test: test_p5_dedup_via_main fragile if scope_paths gains a non-None default cwd
+- [x] #31 doctor: _detect_signature_split may produce false-positive advisory on blank-tool records
+- [ ] #35 doctor: _detect_signature_split orphan check silently misses cross-kind splits
 
 ---
 
